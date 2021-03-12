@@ -23,13 +23,13 @@ So, the problem being solved is actually:
 '''
 import numpy as np
 
-import util.genotype as geno
-import util.sparse_mat as spr
-import util.math as math
+import solver.util.genotype as geno
+import solver.util.sparse_mat as spr
+import solver.util.math as math
 
 class Model1:
     def __init__(self, Rhat1, bhat1, N1, genofile_X2, y2):
-        XtX2, Xty2 = geno.load_XtX_and_Xty(genofile_X2, y2)
+        XtX2, Xty2 = geno.load_genofile_as_XtX(genofile_X2, y2)
         self.A = (N1 - 1) * Rhat1 + XtX2
         self.b = (N1 - 1) * spr.get_diag_as_vec(Rhat1) * bhat1 + Xty2
         # p: number of predictors
@@ -39,18 +39,20 @@ class Model1:
         tvec = spr.mul_vec(self.A, beta)
         avec = 2 * w2 + 2 * spr.get_diag_as_vec(self.A)
         diff, niter = np.Inf, 0
+        c_ = 0
         while diff > tol and niter < maxiter:
             diff_ = 0
-            for j in range(p):
+            for j in range(self.p):
                 a_ = avec[j]
-                c_ = 2 * t[j] - self.A[j, j] * beta[j] - 2 * self.b[j]
+                c_ = 2 * tvec[j] - self.A[j, j] * beta[j] - 2 * self.b[j]
                 beta_j_new = - math.soft_thres(c_, w1) / a_
                 tvec = tvec - spr.get_row_as_vec(self.A, j) * (beta[j] - beta_j_new)
                 diff_ += (beta_j_new - beta[j]) ** 2
                 beta[j] = beta_j_new
+                
             diff = np.sqrt(diff_)
             niter += 1
-        return beta
+        return beta, niter, diff
     def _init_beta(self):
         return np.zeros(self.p)
     

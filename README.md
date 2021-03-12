@@ -13,3 +13,10 @@ We take a penalized regression approach in which we considered two slightly diff
 And depending on the parameterization, we introduce lasso, group lasso, or sparse group lasso penalty as regularizations.
 
 Detailed notes will come soon! TODO!  
+
+
+# Running unittest
+
+```
+python -m unittest discover -p "*_test.py"
+```
