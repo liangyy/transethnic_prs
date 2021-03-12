@@ -18,3 +18,14 @@ def soft_thres(a, b):
         raise TypeError('soft_thres takes float as input.')
 
     return np.sign(a) * _get_positive_side(abs(a) - b)
+
+def l2_norm_sq(vec):
+    if len(vec.shape) > 1:
+        raise ValueError('l2_norm_sq takes 1-dim np.array.')
+    return (vec ** 2).sum()
+
+def l1_norm(vec):
+    if len(vec.shape) > 1:
+        raise ValueError('l1_norm takes 1-dim np.array.')
+    return np.absolute(vec).sum()
+    

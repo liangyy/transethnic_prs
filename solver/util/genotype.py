@@ -7,4 +7,4 @@ def load_genofile_as_XtX(filename, y):
         # for testing, we skip this loading function
         # filename is a csr matrix
         mat = filename
-        return mat.T @ mat, mul_vec(mat, y)
+        return mat.T @ mat, mul_vec(mat.T, y)

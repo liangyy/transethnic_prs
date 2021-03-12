@@ -39,17 +39,15 @@ class Model1:
         tvec = spr.mul_vec(self.A, beta)
         avec = 2 * w2 + 2 * spr.get_diag_as_vec(self.A)
         diff, niter = np.Inf, 0
-        c_ = 0
         while diff > tol and niter < maxiter:
             diff_ = 0
             for j in range(self.p):
                 a_ = avec[j]
-                c_ = 2 * tvec[j] - self.A[j, j] * beta[j] - 2 * self.b[j]
+                c_ = 2 * (tvec[j] - self.A[j, j] * beta[j]) - 2 * self.b[j]
                 beta_j_new = - math.soft_thres(c_, w1) / a_
                 tvec = tvec - spr.get_row_as_vec(self.A, j) * (beta[j] - beta_j_new)
                 diff_ += (beta_j_new - beta[j]) ** 2
                 beta[j] = beta_j_new
-                
             diff = np.sqrt(diff_)
             niter += 1
         return beta, niter, diff
