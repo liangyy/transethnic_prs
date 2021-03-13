@@ -28,4 +28,14 @@ def l1_norm(vec):
     if len(vec.shape) > 1:
         raise ValueError('l1_norm takes 1-dim np.array.')
     return np.absolute(vec).sum()
-    
+
+def calc_XtX_and_Xty(X, y):
+    return mat.T @ mat, mul_vec(mat.T, y)
+
+def mean_center_col(x):
+    if len(x.shape) == 2:
+        return x - x.mean(axis=0)
+    elif len(x.shape) == 1:
+        return x - x.mean()
+    else:
+        raise ValueError('x needs to be 1 or 2 dim.')

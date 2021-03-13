@@ -1,3 +1,6 @@
+# My adds
+test_data/mat_csr*.sparse_cov_test.npz
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
