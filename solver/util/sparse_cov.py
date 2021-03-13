@@ -135,18 +135,32 @@ class SparseCov:
     Only keep the upper triangular entries.
     Save as COO matrix in scipy.sparse.
     '''
-    def __init__(self, filename=None, matrix=None):
+    def __init__(self, filename=None, matrix=None, dense=False):
         if filename is None and matrix is None:
             raise ValueError('Need either filename or matrix to be set.')
         if filename is not None:
-            self._init_with_from_file(filename)
+            if dense is True:
+                raise ValueError('We don\'t support dense=True when using filename.')
+            self._init_with_from_file(filename, dense=dense)
         elif matrix is not None:
-            self._init_with_mat(matrix)
+            self._init_with_mat(matrix, dense=dense)
         self._check_dim()
+        self._set_csr_type()
         self._check_upper_triangular()
-    def _init_with_from_file(self, filename):
+    def _set_csr_type(self):
+        if isinstance(self.csr, scipy.sparse.csr.csr_matrix):
+            self.csr_type = 'scipy_sparse_csr'
+        else:
+            self.csr_type = 'np_array'
+    def _init_with_from_file(self, filename, dense=False):
         self.csr = scipy.sparse.load_npz(filename).tocsr()
-    def _init_with_mat(self, mat):
+    def _init_with_mat(self, mat, dense=False):
+        if dense is True:
+            if not isinstance(mat, np.ndarray):
+                raise TypeError('When dense=True, matrix should be dense.')
+            else:
+                self.csr = mat
+            return 
         if isinstance(mat, scipy.sparse.csr.csr_matrix):
             self.csr = mat
         else:
@@ -156,27 +170,42 @@ class SparseCov:
             raise ValueError('Wrong dim: dim1 != dim2.')
         self.size = self.csr.shape[0]
     def _check_upper_triangular(self):
-        num_non_zeros_tril = scipy.sparse.tril(self.csr, k=-1).nnz
-        if num_non_zeros_tril > 0:
-            warnings.warn('This matrix contains non-zero values in the lower triangular portion (k = -1). These values will be ignored.')
-            self.csr = scipy.sparse.triu(self.csr).tocsr()
+        if self.csr_type == 'scipy_sparse_csr':
+            num_non_zeros_tril = scipy.sparse.tril(self.csr, k=-1).nnz
+            if num_non_zeros_tril > 0:
+                warnings.warn('This matrix contains non-zero values in the lower triangular portion (k = -1). These values will be ignored.')
+                self.csr = scipy.sparse.triu(self.csr).tocsr()
     def get_diag_as_vec(self):
         return self.csr.diagonal()
     def get_jth_diag(self, j):
         return self.csr[j, j]
     def mul_vec(self, vec):
-        diag_csr = self.csr.diagonal()
-        return self.csr.dot(vec) + self.csr.transpose().dot(vec) - diag_csr * vec
+        if self.csr_type == 'scipy_sparse_csr':
+            diag_csr = self.csr.diagonal()
+            return self.csr.dot(vec) + self.csr.transpose().dot(vec) - diag_csr * vec
+        else:
+            return self.csr @ vec
     def get_row_as_vec(self, idx):
-        colwise_idx = self.csr[:, idx].toarray()[:, 0]
-        colwise_idx[idx] = 0
-        rowwise_idx = self.csr[idx, :].toarray()[0]
-        return colwise_idx + rowwise_idx
+        if self.csr_type == 'scipy_sparse_csr':
+            colwise_idx = self.csr[:, idx].toarray()[:, 0]
+            colwise_idx[idx] = 0
+            rowwise_idx = self.csr[idx, :].toarray()[0]
+            return colwise_idx + rowwise_idx
+        else:
+            return self.csr[idx, :]
     def add(self, b, coef1=1, coef2=1):
         '''
         Add another SparseCov b:
         coef1 * self.csr + coef2 * b.csr
         '''    
-        return SparseCov(matrix=self.csr * coef1 + b.csr * coef2)
+        if self.csr_type == 'scipy_sparse_csr' and b.csr_type == 'scipy_sparse_csr':
+            return SparseCov(matrix=self.csr * coef1 + b.csr * coef2)
+        elif self.csr_type == 'np_array' and b.csr_type == 'np_array':
+            return SparseCov(matrix=self.csr * coef1 + b.csr * coef2, dense=True)
+        else:
+            raise TypeError('We need both b and self be scipy_sparse_csr or np_array.')
     def to_mat(self):
-        return scipy.sparse.triu(self.csr) + scipy.sparse.triu(self.csr, k=1).T  
+        if self.csr_type == 'scipy_sparse_csr':
+            return scipy.sparse.triu(self.csr) + scipy.sparse.triu(self.csr, k=1).T 
+        else:
+            return self.csr 

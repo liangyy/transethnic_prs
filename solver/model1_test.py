@@ -5,7 +5,7 @@ import numpy as np
 import scipy.sparse as spr
 from sklearn.linear_model import ElasticNet
 from solver.model1 import Model1
-from solver.util.math import soft_thres
+from solver.util.math import soft_thres, mean_center_col
 # from solver.util.sparse_mat import get_diag_as_vec
 from solver.util.sparse_cov import SparseCov
 from solver.util.objective import obj_original, obj_model1
@@ -125,23 +125,25 @@ class TestModel1(unittest.TestCase):
         # sklearn EN
         X = np.concatenate([self.genofile_X1.toarray(), self.genofile_X2.toarray()], axis=0)
         y = np.concatenate([self.y1, self.y2], axis=0)
+        X = mean_center_col(X)
+        y = mean_center_col(y)
         regr = ElasticNet(
-            random_state=0, alpha=alpha, l1_ratio=l1_ratio, 
+            alpha=alpha, l1_ratio=l1_ratio, copy_X=True,
             fit_intercept=False, max_iter=maxiter, tol=tol, selection='cyclic'
         )
         regr.fit(X, y)
         beta_sk = regr.coef_
 
         # my solver
-        w1 = alpha * l1_ratio
-        w2 = 0.5 * alpha * (1 - l1_ratio)
+        w1 = alpha * l1_ratio * 2 * X.shape[0]
+        w2 = 0.5 * alpha * (1 - l1_ratio) * 2 * X.shape[0]
         mod = Model1(
             self.Rhat1, self.bhat1, self.N1, 
             self.XtX2, self.Xty2
         ) 
         beta_my, _, _ = mod.solve(w1=w1, w2=w2, maxiter=maxiter, tol=tol)
-        self.assertTrue(obj_original(beta_sk, X, y, w1, w2) >= obj_original(beta_my, X, y, w1, w2))
-        self.assertTrue(obj_model1(beta_sk, mod.A.to_mat(), mod.b, w1, w2) >= obj_model1(beta_my, mod.A.to_mat(), mod.b, w1, w2))
+        np.testing.assert_allclose(obj_original(beta_sk, X, y, w1, w2), obj_original(beta_my, X, y, w1, w2))
+        np.testing.assert_allclose(obj_model1(beta_sk, mod.A.to_mat(), mod.b, w1, w2), obj_model1(beta_my, mod.A.to_mat(), mod.b, w1, w2))
 
 
 
