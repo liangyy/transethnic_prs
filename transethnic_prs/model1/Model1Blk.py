@@ -27,6 +27,7 @@ So, the problem being solved is actually:
 import numpy as np
 from transethnic_prs.model1.solve_by_dense_blk import solve_by_dense_blk
 from transethnic_prs.util.misc import check_np_darray
+from transethnic_prs.util.math_jax import calc_XXt_diag_jax, calc_Xy_jax
 
 class Model1Blk:
     '''
@@ -38,32 +39,58 @@ class Model1Blk:
     i.e. Ai = Xi'Xi
     and bi is the corresponding Xi'y
     '''
-    def __init__(self, Alist, blist, X, y):
+    def __init__(self, Alist, blist, Xlist, y):
         '''
         self.Alist
         self.blist
-        self.X
+        self.Xtlist
         self.y
+        self.p
         '''
-        self._set_a_and_b(Alist, blist)
-        self._set_x_and_y(X, y)
+        na_list = self._set_a_and_b(Alist, blist)
+        px_list = self._set_x_and_y(Xlist, y)
+        if not self._list_is_equal(na_list, px_list):
+            raise ValueError('Different number of features between Alist and Xlist.')
+        self.p = np.array(na_list).sum()
+        self.XtX_diag_list = [ calc_XXt_diag_jax(Xi) for Xi in self.Xtlist ] 
     def _set_a_and_b(self, Alist, blist):
         if len(Alist) != len(blist):
             raise ValueError('Alist and blist have different length.')
+        na_list = []
         for i in range(len(Alist)):
-            na, _ = check_np_darray(Alist[i], dim=2, check_squared=True)
+            na = check_np_darray(Alist[i], dim=2, check_squared=True)
             nb = check_np_darray(blist[i], dim=1)
             if na != nb:
                 raise ValueError(f'The {i}th element in Alist and blist has un-matched shape {na} != {nb}.')
+            na_list.append(na)
         self.Alist = Alist
         self.blist = blist
-    def _set_x_and_y(self, x, y):
-        nx, _ = check_np_darray(x, dim=2)
+        return na_list
+    def _set_x_and_y(self, xlist, y):
+        if len(xlist) == 0:
+            raise ValueError('xlist should have at least one element.')
+        nx, px = check_np_darray(xlist[0], dim=2)
+        px_list = [ px ]
+        for i in range(1, len(xlist)):
+            nx_, px_ = check_np_darray(xlist[i], dim=2)
+            if nx != nx_:
+                raise ValueError('Number of rows do not match in xlist.')
+            px_list.append(px_)
         ny = check_np_darray(y, dim=1)
         if nx != ny:
-            raise ValueError(f'X.shape[0] != y.shape[0].') 
-        self.X = x
-        self.y = y       
+            raise ValueError(f'X.shape[0] != y.shape[0].')
+        # transpose X for speed concern 
+        self.Xtlist = [ x.T for x in xlist ]
+        self.y = y   
+        return px_list 
+    @staticmethod
+    def _list_is_equal(l1, l2):
+        if len(l1) != len(l2):
+            raise ValueError('l1 and l2 have different number of elements.')
+        for n1, n2 in zip(l1, l2):
+            if n1 != n2:
+                return False
+        return True
     @staticmethod
     def _get_lambda_seq(lambda_max, nlambda, ratio_lambda):
         lambda_min = lambda_max / ratio_lambda
@@ -85,19 +112,38 @@ class Model1Blk:
             raise ValueError('ratio_lambda needs to be integer and ratio_lambda > 1')
     def kkt_beta_zero(self, alpha):
         lambda_max = 0
-        for b in self.blist:
+        for b, xt in zip(self.blist, self.Xtlist):
+            xy = calc_Xy_jax(xt, self.y)
             lambda_max = max(
                 lambda_max, 
-                2 * np.absolute(b).max() / alpha
+                2 * np.absolute(b + xy).max() / alpha
             )
         return lambda_max
-    def solve(self, w1, w2, tol=1e-5, maxiter=1000):
-        betalist, niter, diff = solve_by_dense_blk(
-            self.Alist, self.blist, self.X, self.y, 
+    @staticmethod
+    def _merge_list(ll):
+        return np.concatenate(ll, axis=0)
+    def solve(self, w1, w2, tol=1e-5, maxiter=1000, return_raw=False, 
+        # the following options only for internal use
+        init_beta=None, init_t=None, init_r=None, 
+        init_obj_lik=None, init_l1_beta=None, init_l2_beta=None,
+        XtX_diag_list=None
+    ):
+        betalist, niter, diff, (tlist, rlist, obj_lik, l1_beta, l2_beta) = solve_by_dense_blk(
+            self.Alist, self.blist, self.Xtlist, self.y, 
+            init_beta=init_beta, 
+            init_t=init_t, 
+            init_r=init_r,
+            init_obj_lik=init_obj_lik,
+            init_l1_beta=init_l1_beta, 
+            init_l2_beta=init_l2_beta,
+            XtX_diag_list=XtX_diag_list,
             w1=w1, w2=w2, tol=tol, maxiter=maxiter
         )
-        beta = np.concatenate(betalist, axis=0)
-        return beta, niter, diff
+        if return_raw is False:
+            beta = self._merge_list(betalist)
+            return beta, niter, diff
+        else:
+            return betalist, niter, diff, (tlist, rlist, obj_lik, l1_beta, l2_beta)
     def solve_path(self, alpha=0.5, tol=1e-5, maxiter=1000, nlambda=100, ratio_lambda=100):
         '''
         What it does:
@@ -115,19 +161,28 @@ class Model1Blk:
         # initialize the beta mat (p x nlambda)
         beta_mat = np.zeros((self.p, nlambda))
         # initialize niter and maxiter records
-        niter_vec, maxiter_vec = np.zeros(nlambda), np.zeros(nlambda)
+        niter_vec, tol_vec = np.zeros(nlambda), np.zeros(nlambda)
         # determine lambda sequence
         lambda_max = self.kkt_beta_zero(alpha)
         lambda_seq = self._get_lambda_seq(lambda_max, nlambda, ratio_lambda)
         # add the first solution (corresponds to lambda = lambda_max)
         beta_mat[:, 0] = np.zeros(self.p)
+        # initialize beta, t, r
+        betalist, tlist, rlist, obj_lik, l1_beta, l2_beta = None, None, None, None, None, None
         # loop over lambda sequence skipping the first, lambda_max
         for idx, lam in enumerate(lambda_seq):
             if idx == 0:
                 continue
             w1, w2 = self._alpha_lambda_to_w1_w2(alpha, lam)
-            beta_mat[:, idx], niter_vec[idx], maxiter_vec[idx] = self.solve(w1=w1, w2=w2, tol=tol, maxiter=maxiter)
-        return beta_mat, lambda_seq, niter_vec, maxiter_vec
+            betalist, niter_vec[idx], tol_vec[idx], (tlist, rlist, obj_lik, l1_beta, l2_beta) = self.solve(
+                w1=w1, w2=w2, tol=tol, maxiter=maxiter,
+                init_beta=betalist, init_t=tlist, init_r=rlist, 
+                init_obj_lik=obj_lik, init_l1_beta=l1_beta, init_l2_beta=l2_beta,
+                XtX_diag_list=self.XtX_diag_list,
+                return_raw=True
+            )
+            beta_mat[:, idx] = self._merge_list(betalist)
+        return beta_mat, lambda_seq, niter_vec, tol_vec
         
         
     

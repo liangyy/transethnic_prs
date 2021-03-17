@@ -20,7 +20,7 @@ def check_if_using_float64():
 def check_np_darray(npdarray, dim=1, check_squared=False):
     if dim > 2:
         raise ValueError('Only check dim = 1 or 2.')
-    if not isinstance(npdarray, np.darray):        
+    if not isinstance(npdarray, np.ndarray):        
         raise TypeError('Not np.darray.')
     if dim != len(npdarray.shape):
         raise ValueError('Dim does not match.')
