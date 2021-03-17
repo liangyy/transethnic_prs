@@ -1,0 +1,37 @@
+import warnings
+
+import numpy as np
+import jax.numpy as jnp
+
+def check_if_using_float64():
+    x = jnp.array(1.)
+    if x.dtype is jnp.dtype('float64'):
+        return
+    else:
+        warnings.warn(
+            '''
+            Using float32. May not have enough precision for convergence check.
+            Do the following the set the precision: 
+            > from jax.config import config
+            > config.update("jax_enable_x64", True)
+            '''
+        )
+
+def check_np_darray(npdarray, dim=1, check_squared=False):
+    if dim > 2:
+        raise ValueError('Only check dim = 1 or 2.')
+    if not isinstance(npdarray, np.darray):        
+        raise TypeError('Not np.darray.')
+    if dim != len(npdarray.shape):
+        raise ValueError('Dim does not match.')
+    if dim == 1:
+        return npdarray.shape[0]
+    elif dim == 2:
+        m, n = npdarray.shape
+        if check_squared is True:
+            if m != n:
+                raise ValueError('Matrix is not squared.')
+            return m
+        else:
+            return m, n
+    
