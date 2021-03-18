@@ -1,5 +1,32 @@
 import numpy as np
 
+def diag_mul_mat(vec, mat):
+    '''
+    diag(vec) @ mat 
+    equiv. to
+    mat[:, i] * vec for all i
+    '''
+    return mat * vec[:, np.newaxis]
+
+def mat_mul_diag(mat, vec):
+    '''
+    mat @ diag(vec)
+    equiv. to
+    mat[i, :] * vec for all i
+    '''
+    return mat * vec[np.newaxis, :]
+
+def mean_center_col(x):
+    if len(x.shape) == 2:
+        return x - x.mean(axis=0)
+    elif len(x.shape) == 1:
+        return x - x.mean()
+    else:
+        raise ValueError('x needs to be 1 or 2 dim.')
+        
+
+# some deprecated functions in below 
+
 def _get_positive_side(v):
     if v < 0:
         return 0
@@ -32,11 +59,3 @@ def l1_norm(vec):
 def calc_XtX_and_Xty(X, y):
     return mat.T @ mat, mul_vec(mat.T, y)
 
-def mean_center_col(x):
-    if len(x.shape) == 2:
-        return x - x.mean(axis=0)
-    elif len(x.shape) == 1:
-        return x - x.mean()
-    else:
-        raise ValueError('x needs to be 1 or 2 dim.')
-        

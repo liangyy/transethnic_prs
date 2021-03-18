@@ -34,4 +34,10 @@ def check_np_darray(npdarray, dim=1, check_squared=False):
             return m
         else:
             return m, n
-    
+        
+def merge_two_lists(l1, l2):
+    out = []
+    for i, j in zip(l1, l2):
+        out.append(f'{i}_{j}')
+    return out   
+ 
