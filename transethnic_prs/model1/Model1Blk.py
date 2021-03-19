@@ -27,7 +27,7 @@ So, the problem being solved is actually:
 import numpy as np
 from transethnic_prs.model1.solve_by_dense_blk import solve_by_dense_blk
 from transethnic_prs.util.misc import check_np_darray
-from transethnic_prs.util.math_jax import calc_XXt_diag_jax, calc_Xy_jax
+from transethnic_prs.util.math_jax import calc_XXt_diag_jax, calc_Xy_jax, mean_center_col_2d_jax, mean_center_col_1d_jax
 
 class Model1Blk:
     '''
@@ -80,8 +80,8 @@ class Model1Blk:
         if nx != ny:
             raise ValueError(f'X.shape[0] != y.shape[0].')
         # transpose X for speed concern 
-        self.Xtlist = [ x.T for x in xlist ]
-        self.y = y   
+        self.Xtlist = [ mean_center_col_2d_jax(x).T for x in xlist ]
+        self.y = mean_center_col_1d_jax(y)   
         return px_list 
     @staticmethod
     def _list_is_equal(l1, l2):
@@ -171,6 +171,7 @@ class Model1Blk:
         betalist, tlist, rlist, obj_lik, l1_beta, l2_beta = None, None, None, None, None, None
         # loop over lambda sequence skipping the first, lambda_max
         for idx, lam in enumerate(lambda_seq):
+            print('working on idx = ', idx)
             if idx == 0:
                 continue
             w1, w2 = self._alpha_lambda_to_w1_w2(alpha, lam)

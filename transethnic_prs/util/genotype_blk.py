@@ -7,7 +7,7 @@ def _geno_by_blk_w_func(df_ldblk, geno_mat, snp_meta, func):
         chrm, s, e = df_ldblk.iloc[i, :]
         snp_meta_i = snp_meta[ 
             (snp_meta.chrom == chrm) & 
-            ((snp_meta.pos < e + 1) & (snp_meta.pos >= s + 1)) 
+            ((snp_meta.pos < e) & (snp_meta.pos >= s)) 
         ]
         if snp_meta_i.shape[0] == 0:
             continue

@@ -40,4 +40,11 @@ def merge_two_lists(l1, l2):
     for i, j in zip(l1, l2):
         out.append(f'{i}_{j}')
     return out   
- 
+
+def scale_array_list(array_list, factor):
+    return [ x * factor for x in array_list ]
+
+def intersect_two_lists(l1, l2):
+    s1 = set(l1)
+    return list(s1.intersection(l2))
+        

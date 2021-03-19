@@ -13,3 +13,11 @@ def calc_XXt_diag_jax(X):
 @jit
 def calc_Xy_jax(X, y):
     return X @ y
+
+@jit
+def mean_center_col_2d_jax(x):
+    return x - x.mean(axis=0)
+
+@jit
+def mean_center_col_1d_jax(x):
+    return x - x.mean()
