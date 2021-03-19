@@ -75,12 +75,25 @@ class DataSimulator:
             bhat = mu + prefactor * (s_vec_blk ** 2) * (lx @ z)
             betahat.append(bhat)
         return betahat
+    def sim_x_and_y(self, h2, sample_size):
+        xlist = self._sim_x(sample_size)
+        return xlist, self._sim_y(h2, xlist)
     def sim_y(self, h2):
+        return self._sim_y(h2, self.X)
+    def _sim_y(self, h2, xlist):
         sigma2e = self.sigma2g / h2 * (1 - h2)
-        mu = np.zeros(self.nx)
-        for x, beta in zip(self.X, self.beta):
+        mu = np.zeros(xlist[0].shape[0])
+        for x, beta in zip(xlist, self.beta):
             mu += x @ beta
         return np.random.normal(loc=mu, scale=np.sqrt(sigma2e))
+    def _sim_x(self, sample_size):
+        xlist = []
+        for x, lx in zip(self.X, self.chol_varx):
+            p, k = lx.shape
+            z = np.random.normal(size=(sample_size, k))
+            mu_x = np.mean(x, axis=0)
+            xlist.append(mu_x[np.newaxis, :] + z @ lx.T)
+        return xlist
     def calc_gwas_from_y(self, y):
         bhat = []
         se = []
