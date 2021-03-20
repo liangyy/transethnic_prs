@@ -38,6 +38,7 @@ class Model1Blk:
     , where Ai is the ith squared matrix along the diagonal of A, 
     i.e. Ai = Xi'Xi
     and bi is the corresponding Xi'y
+    CAUTION: we center Xlist and y
     '''
     def __init__(self, Alist, blist, Xlist, y):
         '''
@@ -171,7 +172,7 @@ class Model1Blk:
         betalist, tlist, rlist, obj_lik, l1_beta, l2_beta = None, None, None, None, None, None
         # loop over lambda sequence skipping the first, lambda_max
         for idx, lam in enumerate(lambda_seq):
-            print('working on idx = ', idx)
+            # print('working on idx = ', idx)
             if idx == 0:
                 continue
             w1, w2 = self._alpha_lambda_to_w1_w2(alpha, lam)

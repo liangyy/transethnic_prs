@@ -68,13 +68,15 @@ class DataSimulator:
         prefactor = np.sqrt(vary) / sample_size
         s_vec = [ np.sqrt(vary / (sample_size ** 2 * varx.diagonal())) for varx in self.VarX ]
         betahat = []
+        se = []
         for varx, s_vec_blk, beta, lx in zip(self.VarX, s_vec, self.beta, self.chol_varx):
             sx = np.sqrt(varx.diagonal())
             mu = diag_mul_mat(s_vec_blk / sx, varx) @ (beta / s_vec_blk / sx)
             z = np.random.normal(size=lx.shape[1])
-            bhat = mu + prefactor * (s_vec_blk ** 2) * (lx @ z)
+            bhat = mu + prefactor * (sx ** 2) * (lx @ z)
             betahat.append(bhat)
-        return betahat
+            se.append(prefactor / sx)
+        return betahat, se
     def sim_x_and_y(self, h2, sample_size):
         xlist = self._sim_x(sample_size)
         return xlist, self._sim_y(h2, xlist)

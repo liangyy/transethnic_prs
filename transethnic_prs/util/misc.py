@@ -1,6 +1,7 @@
 import warnings
 
 import numpy as np
+import pandas as pd
 import jax.numpy as jnp
 
 def check_if_using_float64():
@@ -47,4 +48,20 @@ def scale_array_list(array_list, factor):
 def intersect_two_lists(l1, l2):
     s1 = set(l1)
     return list(s1.intersection(l2))
-        
+
+def get_index_of_l2_from_l1(l1, l2):
+    if len(l1) != len(set(l1)):
+        raise ValueError('There are duplicated values in l1.')
+    dd1 = pd.DataFrame({
+        'idx': [ i for i in range(len(l1)) ],
+        'l': l1
+    })
+    dd2 = pd.DataFrame({
+        'l': l2
+    })
+    dd2 = pd.merge(dd2, dd1, how='inner', on='l')
+    if dd2.shape[0] != len(l2):
+        raise ValueError('There are elements in l2 not in l1.')
+    
+    return list(dd2.idx)
+    

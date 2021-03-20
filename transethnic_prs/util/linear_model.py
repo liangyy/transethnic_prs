@@ -1,4 +1,5 @@
 import numpy as np
+import scipy.stats
 
 from transethnic_prs.util.math import mean_center_col
 
@@ -24,5 +25,10 @@ def fast_simple_linear_regression(X, y):
     sigma2 = rtr / (X_.shape[0] - 2)
     se = np.sqrt(sigma2 / xtx)
     return bhat, se
-    
+
+def z2p(z):
+    '''
+    Two sided p-value
+    '''
+    return np.exp(scipy.stats.norm.logsf(np.abs(z))) * 2
     

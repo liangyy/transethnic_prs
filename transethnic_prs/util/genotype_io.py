@@ -77,6 +77,9 @@ def load_genotype_from_bedfile(
         geno = (geno - 2 * maf) / np.sqrt(var_geno)
     
     if return_snp is True:
+        '''
+        a1 is the effect allele
+        '''
         df_snp = pd.DataFrame({
             'snpid': snpid.tolist(), 
             'a0': a0.tolist(), 
