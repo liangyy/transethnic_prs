@@ -59,7 +59,7 @@ def load_data(pop1_bfile, pop2_bfile, ldblock_pop1, ldblock_pop2, first_nsnp=Non
     
     
 def model1_wrapper(pop1_xcovlist, pop1_gwas_list, pop1_N,
-                   pop2_xlist, pop2_y, model1_kwargs, alpha=[0.1, 0.5, 0.9, 1]):
+                   pop2_xlist, pop2_y, model1_kwargs, alpha=[0.1, 0.5, 0.9, 1], method='full'):
     # model1
     alist = scale_array_list(pop1_xcovlist, pop1_N - 1)
     blist = [ bhat * covx.diagonal() * (pop1_N - 1) for bhat, covx in zip(pop1_gwas_list, pop1_xcovlist) ]
@@ -70,12 +70,17 @@ def model1_wrapper(pop1_xcovlist, pop1_gwas_list, pop1_N,
         y=pop2_y
     )
     beta_out = []
+    lambda_out = []
     for a_ in alpha:
-        beta_mat, _, _, _ = mod1.solve_path(alpha=a_, **model1_kwargs)
+        if method == 'full':
+            beta_mat, lambda_seq, _, _ = mod1.solve_path(alpha=a_, **model1_kwargs)
+        elif method == 'by_block':
+            beta_mat, lambda_seq, _, _ = mod1.solve_path_by_blk(alpha=a_, **model1_kwargs)
         beta_out.append(beta_mat[:, :, np.newaxis])
-    return np.concatenate(beta_out, axis=2)
+        lambda_out.append(lambda_seq[:, np.newaxis])
+    return np.concatenate(beta_out, axis=2), np.concatenate(lambda_out, axis=1)
 
-def lassosum_wrapper(gwas_df, gwas_N, ref_bfile, ldblock, alpha=[0.2, 0.5, 0.9, 1]):
+def lassosum_wrapper(gwas_df, gwas_N, ref_bfile, ldblock, s_seq=[0.2, 0.5, 0.9, 1], lambda_max=None, lassosum_args={}):
     '''
     gwas_df = pd.DataFrame({
         'pval': pval,
@@ -95,6 +100,9 @@ def lassosum_wrapper(gwas_df, gwas_N, ref_bfile, ldblock, alpha=[0.2, 0.5, 0.9, 
         sign=rpy2_extract_col_from_df(gwas_rdf, 'bhat')
     )
     
+    if lambda_max is not None:
+        lassosum_args['lambda'] = ro.FloatVector(np.exp(np.linspace(np.log(lambda_max / 100), np.log(lambda_max), num=20)))
+
     out = lassosum.lassosum_pipeline(
         cor=cor, 
         chr=rpy2_extract_col_from_df(gwas_rdf, 'chrom'), 
@@ -103,7 +111,8 @@ def lassosum_wrapper(gwas_df, gwas_N, ref_bfile, ldblock, alpha=[0.2, 0.5, 0.9, 
         A2=rpy2_extract_col_from_df(gwas_rdf, 'a2'), # A2 is not required but advised
         ref_bfile=ref_bfile,
         LDblocks=ldblock,
-        s=ro.FloatVector(alpha)
+        s=ro.FloatVector(s_seq),
+        **lassosum_args
     )
     
     with localconverter(ro.default_converter + pandas2ri.converter):
@@ -114,7 +123,7 @@ def lassosum_wrapper(gwas_df, gwas_N, ref_bfile, ldblock, alpha=[0.2, 0.5, 0.9, 
     idx = get_index_of_l2_from_l1(gwas_df.snpid, snp_df.snpid) 
     
     beta_mat = []
-    for i in alpha:
+    for i in s_seq:
         tmp = np.asarray(out.rx2('beta').rx2(str(i)))[:, ::-1]
         beta_ = np.zeros((gwas_df.shape[0], tmp.shape[1]))
         beta_[idx, :] = tmp

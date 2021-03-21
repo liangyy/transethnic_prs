@@ -60,20 +60,22 @@ class DataSimulator:
             w, v = np.linalg.eigh(varx)
             v = v[:, np.abs(w) > thres]
             w = w[np.abs(w) > thres]
-            v = mat_mul_diag(v, w)
+            if (w < 0).sum() > 0:
+                raise ValueError('Not positive semi-definite.')
+            v = mat_mul_diag(v, np.sqrt(w))
             chol_varx.append(v)
         self.chol_varx = chol_varx
     def sim_gwas(self, h2, sample_size):
         vary = self.sigma2g / h2
-        prefactor = np.sqrt(vary) / sample_size
-        s_vec = [ np.sqrt(vary / (sample_size ** 2 * varx.diagonal())) for varx in self.VarX ]
+        prefactor = np.sqrt(vary / sample_size)
+        s_vec = [ np.sqrt(vary / (sample_size * varx.diagonal())) for varx in self.VarX ]
         betahat = []
         se = []
         for varx, s_vec_blk, beta, lx in zip(self.VarX, s_vec, self.beta, self.chol_varx):
             sx = np.sqrt(varx.diagonal())
             mu = diag_mul_mat(s_vec_blk / sx, varx) @ (beta / s_vec_blk / sx)
             z = np.random.normal(size=lx.shape[1])
-            bhat = mu + prefactor * (sx ** 2) * (lx @ z)
+            bhat = mu + prefactor / (sx ** 2) * (lx @ z)
             betahat.append(bhat)
             se.append(prefactor / sx)
         return betahat, se

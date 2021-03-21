@@ -20,7 +20,7 @@ def fast_simple_linear_regression(X, y):
     xtx = (X_ ** 2).sum(axis=0)
     xty = (X_ * y_[:, np.newaxis]).sum(axis=0)
     bhat = xty / xtx
-    r = y[:, np.newaxis] - X_ * bhat[np.newaxis, :]
+    r = y_[:, np.newaxis] - X_ * bhat[np.newaxis, :]
     rtr = (r ** 2).sum(axis=0)
     sigma2 = rtr / (X_.shape[0] - 2)
     se = np.sqrt(sigma2 / xtx)

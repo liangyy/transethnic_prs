@@ -145,6 +145,76 @@ class Model1Blk:
             return beta, niter, diff
         else:
             return betalist, niter, diff, (tlist, rlist, obj_lik, l1_beta, l2_beta)
+    def solve_by_blk(self, idx, w1, w2, tol=1e-5, maxiter=1000, return_raw=False, 
+        # the following options only for internal use
+        init_beta=None, init_t=None, init_r=None, 
+        init_obj_lik=None, init_l1_beta=None, init_l2_beta=None,
+        XtX_diag_list=None
+    ):
+        betalist, niter, diff, (tlist, rlist, obj_lik, l1_beta, l2_beta) = solve_by_dense_blk(
+            self.Alist[idx:(idx + 1)], self.blist[idx:(idx + 1)], self.Xtlist[idx:(idx + 1)], self.y, 
+            init_beta=init_beta, 
+            init_t=init_t, 
+            init_r=init_r,
+            init_obj_lik=init_obj_lik,
+            init_l1_beta=init_l1_beta, 
+            init_l2_beta=init_l2_beta,
+            XtX_diag_list=XtX_diag_list,
+            w1=w1, w2=w2, tol=tol, maxiter=maxiter
+        )
+        if return_raw is False:
+            beta = self._merge_list(betalist)
+            return beta, niter, diff
+        else:
+            return betalist, niter, diff, (tlist, rlist, obj_lik, l1_beta, l2_beta)
+    def solve_path_by_blk(self, alpha=0.5, tol=1e-5, maxiter=1000, nlambda=100, ratio_lambda=100):
+        '''
+        Same info as solve_path.
+        But here we solve each block one at a time and combine at the end.
+        '''
+        
+        # check input parameters
+        self._solve_path_param_sanity_check(alpha, nlambda, ratio_lambda)
+        
+        
+        lambda_max = self.kkt_beta_zero(alpha)
+        lambda_seq = self._get_lambda_seq(lambda_max, nlambda, ratio_lambda)
+        # add the first solution (corresponds to lambda = lambda_max)
+        
+        beta_list = []
+        niter_list = []
+        tol_list = []
+        for i in range(len(self.Xtlist)):
+            
+            pp = self.Xtlist[i].shape[0]
+            # initialize the beta mat (p x nlambda)
+            beta_mat = np.zeros((pp, nlambda))
+            # initialize niter and maxiter records
+            niter_vec, tol_vec = np.zeros(nlambda), np.zeros(nlambda)
+            beta_mat[:, 0] = np.zeros(pp)
+            # initialize beta, t, r
+            betalist, tlist, rlist, obj_lik, l1_beta, l2_beta = None, None, None, None, None, None
+            # loop over lambda sequence skipping the first, lambda_max 
+            for idx, lam in enumerate(lambda_seq):
+                # print('working on block = ', i, 'idx = ', idx)
+                if idx == 0:
+                    continue
+                w1, w2 = self._alpha_lambda_to_w1_w2(alpha, lam)
+                betalist, niter_vec[idx], tol_vec[idx], (tlist, rlist, obj_lik, l1_beta, l2_beta) = self.solve_by_blk(
+                    w1=w1, w2=w2, idx=i,
+                    tol=tol, maxiter=maxiter,
+                    init_beta=betalist, init_t=tlist, init_r=rlist, 
+                    init_obj_lik=obj_lik, init_l1_beta=l1_beta, init_l2_beta=l2_beta,
+                    XtX_diag_list=self.XtX_diag_list,
+                    return_raw=True
+                )
+                beta_mat[:, idx] = self._merge_list(betalist)
+            beta_list.append(beta_mat)
+            niter_list.append(niter_vec)
+            tol_list.append(tol_vec)
+        beta_merged = np.concatenate(beta_list, axis=0)
+        return beta_merged, lambda_seq, niter_vec, tol_vec
+        
     def solve_path(self, alpha=0.5, tol=1e-5, maxiter=1000, nlambda=100, ratio_lambda=100):
         '''
         What it does:
@@ -155,7 +225,7 @@ class Model1Blk:
             w1 = lambda * alpha
             w2 = lambda * (1 - alpha) / 2
         '''
-        pass 
+         
         # check input parameters
         self._solve_path_param_sanity_check(alpha, nlambda, ratio_lambda)
         
