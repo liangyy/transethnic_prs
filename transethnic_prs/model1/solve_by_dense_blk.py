@@ -14,7 +14,7 @@ Do the following the set the precision:
 > config.update("jax_enable_x64", True)
 '''
 
-def solve_by_dense_blk(Alist, blist, Xtlist, y, w1, w2, tol=1e-5, maxiter=1000,
+def solve_by_dense_blk(Alist, blist, Xtlist, y, w1, w2, offset=0, tol=1e-5, maxiter=1000,
     init_beta=None, init_t=None, init_r=None, init_obj_lik=None, 
     init_l1_beta=None, init_l2_beta=None, XtX_diag_list=None):
     
@@ -24,9 +24,10 @@ def solve_by_dense_blk(Alist, blist, Xtlist, y, w1, w2, tol=1e-5, maxiter=1000,
     if init_beta is None:
         beta, t, r, obj_lik, l1_beta, l2_beta = _init_beta_as_zeros(Alist, y)
     else:
-        beta, t, r, obj_lik, l1_beta, l2_beta = init_beta, init_t, init_r, init_obj_lik, init_l1_beta, init_l2_beta 
+        beta, t, r, obj_lik, l1_beta, l2_beta = init_beta, init_t, init_r, init_obj_lik, init_l1_beta, init_l2_beta
     if XtX_diag_list is None:
         XtX_diag_list = [ calc_XXt_diag_jax(Xi) for Xi in Xtlist ]
+    offset_list = [ offset * ai.diagonal() for ai in Alist ]
     obj0 = obj_lik + _eval_penalty(l1_beta, l2_beta, w1, w2) 
     diff = tol + 1
     niter = 0
@@ -41,7 +42,7 @@ def solve_by_dense_blk(Alist, blist, Xtlist, y, w1, w2, tol=1e-5, maxiter=1000,
                 val=[
                     (A_blk, blist[blk], Xtlist[blk], XtX_diag_list[blk]), 
                     (t[blk], beta[blk], r), 
-                    (w1, w2), 
+                    (w1, w2, offset_list[blk]), 
                     (beta_Abeta, beta_b, l1_beta, l2_beta)
                 ]
             )
@@ -70,22 +71,23 @@ def _dense_blk_update(val):
     val = [
         (A_blk, blist[blk], X[blk], XtX_diag[blk]), 
         (t[blk], beta[blk], r), 
-        (w1, w2),
+        (w1, w2, offset),
         (beta_Abeta, beta_b, l1_beta, l2_beta)
     ]
     '''
     A = val[0][0]
     p = A.shape[0]
     beta_Abeta, beta_b, l1_beta, l2_beta = val[-1]
+    offset = val[2][2]
     val = jax.lax.fori_loop(
         0, p, _dense_update_jth, 
         init_val=val[:-1]
     )
     b, t, beta = val[0][1], val[1][0], val[1][1]
-    beta_Abeta += beta.T @ t
+    beta_Abeta += beta.T @ t + (jnp.power(beta, 2) * offset).sum()
     beta_b += b.T @ beta
     l1_beta += jnp.abs(beta).sum()
-    l2_beta += jnp.power(beta, 2).sum()
+    l2_beta += jnp.power(beta, 2).sum() 
     return val + [ (beta_Abeta, beta_b, l1_beta, l2_beta) ]
     
 # @jit
@@ -105,12 +107,12 @@ def _dense_update_jth(j, val):
     val = [ 
         (A_blk, blist[blk], X[blk], XtX_diag[blk]), 
         (t[blk], beta[blk], r), 
-        (w1, w2)
+        (w1, w2, offset)
     ]
     '''
     A, b, X, XtX_diag = val[0]
     t, beta, r = val[1]
-    w1, w2 = val[2]
+    w1, w2, offset = val[2]
     
     beta_j = beta[j]
     # Xj = X[:, j]
@@ -125,7 +127,7 @@ def _dense_update_jth(j, val):
     # Abeta_no_j = t[j] - Ajj * beta_j
     t = jnp.where(beta_j == 0, t, t - A[j, :] * beta_j)
     
-    a = Ajj + XtX_diag[j] + w2
+    a = Ajj + XtX_diag[j] + w2 + offset[j]
     
     # c = Abeta_no_j - b[j] - r_no_j.T @ Xj
     # c = Abeta_no_j - b[j] - r.T @ Xj

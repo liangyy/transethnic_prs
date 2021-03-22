@@ -59,7 +59,7 @@ def load_data(pop1_bfile, pop2_bfile, ldblock_pop1, ldblock_pop2, first_nsnp=Non
     
     
 def model1_wrapper(pop1_xcovlist, pop1_gwas_list, pop1_N,
-                   pop2_xlist, pop2_y, model1_kwargs, alpha=[0.1, 0.5, 0.9, 1], method='full'):
+                   pop2_xlist, pop2_y, model1_kwargs, alpha=1, offset=[0, 0.1, 0.2, 0.3], method='full'):
     # model1
     alist = scale_array_list(pop1_xcovlist, pop1_N - 1)
     blist = [ bhat * covx.diagonal() * (pop1_N - 1) for bhat, covx in zip(pop1_gwas_list, pop1_xcovlist) ]
@@ -71,11 +71,12 @@ def model1_wrapper(pop1_xcovlist, pop1_gwas_list, pop1_N,
     )
     beta_out = []
     lambda_out = []
-    for a_ in alpha:
+    for o_  in offset:
+        print('offset =', o_)
         if method == 'full':
-            beta_mat, lambda_seq, _, _ = mod1.solve_path(alpha=a_, **model1_kwargs)
+            beta_mat, lambda_seq, _, _ = mod1.solve_path(alpha=alpha, offset=o_ * (pop1_N - 1), **model1_kwargs)
         elif method == 'by_block':
-            beta_mat, lambda_seq, _, _ = mod1.solve_path_by_blk(alpha=a_, **model1_kwargs)
+            beta_mat, lambda_seq, _, _ = mod1.solve_path_by_blk(alpha=alpha, offset=o_ * (pop1_N - 1), **model1_kwargs)
         beta_out.append(beta_mat[:, :, np.newaxis])
         lambda_out.append(lambda_seq[:, np.newaxis])
     return np.concatenate(beta_out, axis=2), np.concatenate(lambda_out, axis=1)
@@ -110,8 +111,10 @@ def lassosum_wrapper(gwas_df, gwas_N, ref_bfile, ldblock, s_seq=[0.2, 0.5, 0.9, 
         A1=rpy2_extract_col_from_df(gwas_rdf, 'a1'), 
         A2=rpy2_extract_col_from_df(gwas_rdf, 'a2'), # A2 is not required but advised
         ref_bfile=ref_bfile,
+        test_bfile=ref_bfile,
         LDblocks=ldblock,
         s=ro.FloatVector(s_seq),
+        destandardize=True,
         **lassosum_args
     )
     
