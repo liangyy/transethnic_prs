@@ -52,7 +52,7 @@ def solve_by_dense_blk(Alist, blist, Xtlist, y, w1, w2, offset=0, tol=1e-5, maxi
         diff = obj0 - obj
         obj0 = obj
         niter += 1
-    return beta, niter, diff, (t, r, obj_lik, l1_beta, l2_beta)
+    return beta, niter, diff, (t, r, obj_lik, l1_beta, l2_beta), XtX_diag_list
 
 @jit
 def _init_beta_as_zeros(Alist, y):

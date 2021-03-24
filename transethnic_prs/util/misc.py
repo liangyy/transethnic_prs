@@ -9,6 +9,7 @@ def check_if_using_float64():
     if x.dtype is jnp.dtype('float64'):
         return
     else:
+        # raise ValueError('Precision!!!')
         warnings.warn(
             '''
             Using float32. May not have enough precision for convergence check.
@@ -17,6 +18,8 @@ def check_if_using_float64():
             > config.update("jax_enable_x64", True)
             '''
         )
+        import jax.config
+        jax.config.update("jax_enable_x64", True)
 
 def check_np_darray(npdarray, dim=1, check_squared=False):
     if dim > 2:
@@ -65,3 +68,10 @@ def get_index_of_l2_from_l1(l1, l2):
     
     return list(dd2.idx)
     
+def list_is_equal(l1, l2):
+    if len(l1) != len(l2):
+        raise ValueError('l1 and l2 have different number of elements.')
+    for n1, n2 in zip(l1, l2):
+        if n1 != n2:
+            return False
+    return True    

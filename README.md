@@ -15,8 +15,8 @@ And depending on the parameterization, we introduce lasso, group lasso, or spars
 Detailed notes will come soon! TODO!  
 
 
-# Running unittest
+<!-- # Running unittest
 
 ```
 python -m unittest discover -p "*_test.py"
-```
+``` -->

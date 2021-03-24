@@ -9,11 +9,12 @@ base = importr('base')
 utils = importr('utils')
 
 import numpy as np
+import pandas as pd
 
 from transethnic_prs.util.misc import scale_array_list, intersect_two_lists, get_index_of_l2_from_l1
-from transethnic_prs.util.genotype_blk import geno_by_blk, geno_to_cov_by_blk
+from transethnic_prs.util.genotype_blk import geno_by_blk, geno_to_cov_by_blk, snplist_by_blk
 from transethnic_prs.util.ldblock import load_ldetect, cmp_two_rng
-from transethnic_prs.util.genotype_io import load_genotype_from_bedfile
+from transethnic_prs.util.genotype_io import load_genotype_from_bedfile, get_complement
 
 from transethnic_prs.model1.Model1Blk import Model1Blk
 
@@ -27,14 +28,22 @@ def load_data(pop1_bfile, pop2_bfile, ldblock_pop1, ldblock_pop2, first_nsnp=Non
         
     # load genotype BED files
     geno1, _, _, snp1 = load_genotype_from_bedfile(pop1_bfile, return_snp=True)
-    geno2, _, _, snp2 = load_genotype_from_bedfile(pop2_bfile, return_snp=True)
+    geno2, indiv2, _, snp2 = load_genotype_from_bedfile(pop2_bfile, return_snp=True)
     snp1['snpid'] = [ f'{ch}_{s}' for ch, s in zip(snp1.chrom, snp1.pos) ]
     snp2['snpid'] = [ f'{ch}_{s}' for ch, s in zip(snp2.chrom, snp2.pos) ]
     
     # get common snps
-    common_snp = intersect_two_lists(snp1.snpid, snp2.snpid)
+    snp1['is_amb'] = [ a1 == get_complement(a2) for a1, a2 in zip(snp1.a1, snp1.a0) ] 
+    snp1_new = snp1[~snp1.is_amb].reset_index(drop=True)
+    common_snp = intersect_two_lists(snp1_new.snpid, snp2.snpid)
     if first_nsnp is not None and first_nsnp < len(common_snp):
         common_snp = common_snp[:first_nsnp]
+        # get sorted common snp
+        common_snp = list(pd.DataFrame({
+            'snpid': common_snp, 
+            'chr': [ int(x.split('_')[0]) for x in common_snp],
+            'pos': [ int(x.split('_')[1]) for x in common_snp]
+        }).sort_values(by=['chr', 'pos']).snpid)
     idx1 = get_index_of_l2_from_l1(snp1.snpid, common_snp) 
     idx2 = get_index_of_l2_from_l1(snp2.snpid, common_snp)  
     
@@ -50,12 +59,15 @@ def load_data(pop1_bfile, pop2_bfile, ldblock_pop1, ldblock_pop2, first_nsnp=Non
     geno_cov_blk1 = geno_to_cov_by_blk(ldblk1, geno1, snp1)
     geno_cov_blk2 = geno_to_cov_by_blk(ldblk2, geno2, snp2)
     geno_blk2_in_1 = geno_by_blk(ldblk1, geno2, snp2)
+    snp_blk1 = snplist_by_blk(ldblk1, snp1)
+    snp_blk2 = snplist_by_blk(ldblk2, snp2)
+    snp_blk2_in_1 = snplist_by_blk(ldblk1, snp2)
     
     geno_blk_tuple = (geno_blk1, geno_blk2, geno_blk2_in_1)
     geno_cov_tuple = (geno_cov_blk1, geno_cov_blk2)
-    snp_tuple = (snp1, snp2)
+    snp_tuple = (snp_blk1, snp_blk2, snp_blk2_in_1)
     
-    return  geno_blk_tuple, geno_cov_tuple, snp_tuple
+    return  geno_blk_tuple, geno_cov_tuple, snp_tuple, indiv2
     
     
 def model1_wrapper(pop1_xcovlist, pop1_gwas_list, pop1_N,
@@ -71,15 +83,19 @@ def model1_wrapper(pop1_xcovlist, pop1_gwas_list, pop1_N,
     )
     beta_out = []
     lambda_out = []
+    niter_out = []
+    tol_out = []
     for o_  in offset:
         print('offset =', o_)
         if method == 'full':
-            beta_mat, lambda_seq, _, _ = mod1.solve_path(alpha=alpha, offset=o_ * (pop1_N - 1), **model1_kwargs)
+            beta_mat, lambda_seq, niter, tol = mod1.solve_path(alpha=alpha, offset=o_ * (pop1_N - 1), **model1_kwargs)
         elif method == 'by_block':
-            beta_mat, lambda_seq, _, _ = mod1.solve_path_by_blk(alpha=alpha, offset=o_ * (pop1_N - 1), **model1_kwargs)
+            beta_mat, lambda_seq, niter, tol = mod1.solve_path_by_blk(alpha=alpha, offset=o_ * (pop1_N - 1), **model1_kwargs)
         beta_out.append(beta_mat[:, :, np.newaxis])
         lambda_out.append(lambda_seq[:, np.newaxis])
-    return np.concatenate(beta_out, axis=2), np.concatenate(lambda_out, axis=1)
+        niter_out.append(niter)
+        tol_out.append(tol)
+    return np.concatenate(beta_out, axis=2), np.concatenate(lambda_out, axis=1), niter_out, tol_out
 
 def lassosum_wrapper(gwas_df, gwas_N, ref_bfile, ldblock, s_seq=[0.2, 0.5, 0.9, 1], lambda_max=None, lassosum_args={}):
     '''

@@ -25,9 +25,14 @@ So, the problem being solved is actually:
   A* = A + offset * diag(A)
 '''
 import numpy as np
-from transethnic_prs.model1.solve_by_dense_blk import solve_by_dense_blk
-from transethnic_prs.util.misc import check_np_darray
+
+import transethnic_prs.model1.solve_by_dense_blk as ss 
+
+from transethnic_prs.model1.Model1Helper import *
+from transethnic_prs.util.misc import check_np_darray, list_is_equal
 from transethnic_prs.util.math_jax import calc_XXt_diag_jax, calc_Xy_jax, mean_center_col_2d_jax, mean_center_col_1d_jax
+
+
 
 class Model1Blk:
     '''
@@ -50,7 +55,7 @@ class Model1Blk:
         '''
         na_list = self._set_a_and_b(Alist, blist)
         px_list = self._set_x_and_y(Xlist, y)
-        if not self._list_is_equal(na_list, px_list):
+        if not list_is_equal(na_list, px_list):
             raise ValueError('Different number of features between Alist and Xlist.')
         self.p = np.array(na_list).sum()
         self.XtX_diag_list = [ calc_XXt_diag_jax(Xi) for Xi in self.Xtlist ] 
@@ -84,33 +89,7 @@ class Model1Blk:
         self.Xtlist = [ mean_center_col_2d_jax(x).T for x in xlist ]
         self.y = mean_center_col_1d_jax(y)   
         return px_list 
-    @staticmethod
-    def _list_is_equal(l1, l2):
-        if len(l1) != len(l2):
-            raise ValueError('l1 and l2 have different number of elements.')
-        for n1, n2 in zip(l1, l2):
-            if n1 != n2:
-                return False
-        return True
-    @staticmethod
-    def _get_lambda_seq(lambda_max, nlambda, ratio_lambda):
-        lambda_min = lambda_max / ratio_lambda
-        return np.exp(np.linspace(np.log(lambda_max), np.log(lambda_min), num=nlambda))
-    @staticmethod
-    def _alpha_lambda_to_w1_w2(alpha, lambda_):
-        '''
-        w1 = lambda * alpha
-        w2 = lambda * (1 - alpha) / 2
-        '''
-        return lambda_ * alpha, lambda_ * (1 - alpha) / 2
-    @staticmethod
-    def _solve_path_param_sanity_check(alpha, nlambda, ratio_lambda):
-        if alpha > 1 or alpha < 0:
-            raise ValueError('Only alpha in [0, 1] is acceptable.')
-        if not isinstance(nlambda, int) or nlambda < 1:
-            raise ValueError('nlambda needs to be integer and nlambda >= 1')
-        if not isinstance(nlambda, int) or ratio_lambda <= 1:
-            raise ValueError('ratio_lambda needs to be integer and ratio_lambda > 1')
+    
     def kkt_beta_zero(self, alpha):
         lambda_max = 0
         for b, xt in zip(self.blist, self.Xtlist):
@@ -120,16 +99,13 @@ class Model1Blk:
                 2 * np.absolute(b + xy).max() / alpha
             )
         return lambda_max
-    @staticmethod
-    def _merge_list(ll):
-        return np.concatenate(ll, axis=0)
     def solve(self, w1, w2, offset=0, tol=1e-5, maxiter=1000, return_raw=False, 
         # the following options only for internal use
         init_beta=None, init_t=None, init_r=None, 
         init_obj_lik=None, init_l1_beta=None, init_l2_beta=None,
         XtX_diag_list=None
     ):
-        betalist, niter, diff, (tlist, rlist, obj_lik, l1_beta, l2_beta) = solve_by_dense_blk(
+        betalist, niter, diff, (tlist, rlist, obj_lik, l1_beta, l2_beta), _ = ss.solve_by_dense_blk(
             self.Alist, self.blist, self.Xtlist, self.y, 
             init_beta=init_beta, 
             init_t=init_t, 
@@ -141,7 +117,7 @@ class Model1Blk:
             w1=w1, w2=w2, tol=tol, maxiter=maxiter, offset=offset
         )
         if return_raw is False:
-            beta = self._merge_list(betalist)
+            beta = merge_list(betalist)
             return beta, niter, diff
         else:
             return betalist, niter, diff, (tlist, rlist, obj_lik, l1_beta, l2_beta)
@@ -151,7 +127,7 @@ class Model1Blk:
         init_obj_lik=None, init_l1_beta=None, init_l2_beta=None,
         XtX_diag_list=None
     ):
-        betalist, niter, diff, (tlist, rlist, obj_lik, l1_beta, l2_beta) = solve_by_dense_blk(
+        betalist, niter, diff, (tlist, rlist, obj_lik, l1_beta, l2_beta), _ = ss.solve_by_dense_blk(
             self.Alist[idx:(idx + 1)], self.blist[idx:(idx + 1)], self.Xtlist[idx:(idx + 1)], self.y, 
             init_beta=init_beta, 
             init_t=init_t, 
@@ -159,11 +135,11 @@ class Model1Blk:
             init_obj_lik=init_obj_lik,
             init_l1_beta=init_l1_beta, 
             init_l2_beta=init_l2_beta,
-            XtX_diag_list=XtX_diag_list,
+            XtX_diag_list=XtX_diag_list[idx:(idx + 1)],
             w1=w1, w2=w2, tol=tol, maxiter=maxiter, offset=offset
         )
         if return_raw is False:
-            beta = self._merge_list(betalist)
+            beta = merge_list(betalist)
             return beta, niter, diff
         else:
             return betalist, niter, diff, (tlist, rlist, obj_lik, l1_beta, l2_beta)
@@ -174,11 +150,11 @@ class Model1Blk:
         '''
         
         # check input parameters
-        self._solve_path_param_sanity_check(alpha, nlambda, ratio_lambda)
+        solve_path_param_sanity_check(alpha, nlambda, ratio_lambda)
         
         
         lambda_max = self.kkt_beta_zero(alpha)
-        lambda_seq = self._get_lambda_seq(lambda_max, nlambda, ratio_lambda)
+        lambda_seq = get_lambda_seq(lambda_max, nlambda, ratio_lambda)
         # add the first solution (corresponds to lambda = lambda_max)
         
         beta_list = []
@@ -199,7 +175,7 @@ class Model1Blk:
                 # print('working on block = ', i, 'idx = ', idx)
                 if idx == 0:
                     continue
-                w1, w2 = self._alpha_lambda_to_w1_w2(alpha, lam)
+                w1, w2 = alpha_lambda_to_w1_w2(alpha, lam)
                 betalist, niter_vec[idx], tol_vec[idx], (tlist, rlist, obj_lik, l1_beta, l2_beta) = self.solve_by_blk(
                     w1=w1, w2=w2, idx=i,
                     tol=tol, maxiter=maxiter, offset=offset,
@@ -208,12 +184,12 @@ class Model1Blk:
                     XtX_diag_list=self.XtX_diag_list,
                     return_raw=True
                 )
-                beta_mat[:, idx] = self._merge_list(betalist)
+                beta_mat[:, idx] = merge_list(betalist)
             beta_list.append(beta_mat)
             niter_list.append(niter_vec)
             tol_list.append(tol_vec)
         beta_merged = np.concatenate(beta_list, axis=0)
-        return beta_merged, lambda_seq, niter_vec, tol_vec
+        return beta_merged, lambda_seq, niter_list, tol_list
         
     def solve_path(self, alpha=0.5, offset=0, tol=1e-5, maxiter=1000, nlambda=100, ratio_lambda=100):
         '''
@@ -227,7 +203,7 @@ class Model1Blk:
         '''
          
         # check input parameters
-        self._solve_path_param_sanity_check(alpha, nlambda, ratio_lambda)
+        solve_path_param_sanity_check(alpha, nlambda, ratio_lambda)
         
         # initialize the beta mat (p x nlambda)
         beta_mat = np.zeros((self.p, nlambda))
@@ -235,7 +211,7 @@ class Model1Blk:
         niter_vec, tol_vec = np.zeros(nlambda), np.zeros(nlambda)
         # determine lambda sequence
         lambda_max = self.kkt_beta_zero(alpha)
-        lambda_seq = self._get_lambda_seq(lambda_max, nlambda, ratio_lambda)
+        lambda_seq = get_lambda_seq(lambda_max, nlambda, ratio_lambda)
         # add the first solution (corresponds to lambda = lambda_max)
         beta_mat[:, 0] = np.zeros(self.p)
         # initialize beta, t, r
@@ -245,7 +221,7 @@ class Model1Blk:
             # print('working on idx = ', idx)
             if idx == 0:
                 continue
-            w1, w2 = self._alpha_lambda_to_w1_w2(alpha, lam)
+            w1, w2 = alpha_lambda_to_w1_w2(alpha, lam)
             betalist, niter_vec[idx], tol_vec[idx], (tlist, rlist, obj_lik, l1_beta, l2_beta) = self.solve(
                 w1=w1, w2=w2, tol=tol, maxiter=maxiter, offset=offset,
                 init_beta=betalist, init_t=tlist, init_r=rlist, 
@@ -253,7 +229,7 @@ class Model1Blk:
                 XtX_diag_list=self.XtX_diag_list,
                 return_raw=True
             )
-            beta_mat[:, idx] = self._merge_list(betalist)
+            beta_mat[:, idx] = merge_list(betalist)
         return beta_mat, lambda_seq, niter_vec, tol_vec
         
         

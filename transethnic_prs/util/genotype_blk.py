@@ -1,5 +1,18 @@
 import numpy as np
 
+def snplist_by_blk(df_ldblk, snp_meta):
+    out = []
+    for i in range(df_ldblk.shape[0]):
+        chrm, s, e = df_ldblk.iloc[i, :]
+        snp_meta_i = snp_meta[ 
+            (snp_meta.chrom == chrm) & 
+            ((snp_meta.pos < e) & (snp_meta.pos >= s)) 
+        ]
+        if snp_meta_i.shape[0] == 0:
+            continue
+        out.append(snp_meta_i)
+    return out   
+
 def _geno_by_blk_w_func(df_ldblk, geno_mat, snp_meta, func):
     out = []
     geno_blk = []
