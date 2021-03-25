@@ -1,8 +1,15 @@
 import numpy as np
 
 def get_lambda_seq(lambda_max, nlambda, ratio_lambda):
-    lambda_min = lambda_max / ratio_lambda
-    return np.exp(np.linspace(np.log(lambda_max), np.log(lambda_min), num=nlambda))
+    if not isinstance(lambda_max, list):
+        lambda_min = lambda_max / ratio_lambda
+        return np.exp(np.linspace(np.log(lambda_max), np.log(lambda_min), num=nlambda))
+    else:
+        o = []
+        for lm in lambda_max:
+            lambda_min = lm / ratio_lambda
+            o.append(np.exp(np.linspace(np.log(lm), np.log(lambda_min), num=nlambda)))
+        return o
 def alpha_lambda_to_w1_w2(alpha, lambda_):
     '''
     w1 = lambda * alpha

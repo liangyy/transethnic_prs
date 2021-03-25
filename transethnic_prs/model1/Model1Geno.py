@@ -18,14 +18,11 @@ import pandas as pd
 import numpy as np
 
 import transethnic_prs.util.math_jax as mj 
-from transethnic_prs.util.misc import scale_array_list
+from transethnic_prs.util.misc import init_nested_list
 import transethnic_prs.util.genotype_io as genoio
 from transethnic_prs.model1.Model1Helper import *
 from transethnic_prs.model1.Model1GenoHelper import *
-# # debug
-# import imp
-# genoio = imp.reload(genoio)
-# # END
+
 
 
 from transethnic_prs.util.misc import check_np_darray, intersect_two_lists
@@ -130,19 +127,29 @@ class Model1Geno:
             res = pool.map(
                 kkt_beta_zero_per_blk_, args_by_worker
             )
-        return max(res)
+        res = np.array(res)
+        return list(res.max(axis=0))
     
     def solve_path_by_blk(self, alpha=0.5, offset=0, tol=1e-5, maxiter=1000, nlambda=100, ratio_lambda=100, nthreads=None):
         '''
         Same info as solve_path.
         But here we solve each block one at a time and combine at the end.
+        
+        Alpha and offset could be a list of numbers.
+        Since IO is expensive, we will solve all combination within one IO pass. 
         '''
+        
+        if not isinstance(alpha, list):
+            alpha = [ alpha ]
+        if not isinstance(offset, list):
+            offset = [ offset ]
         
         # set nthreads
         nthreads = self.nthreads if nthreads is None else nthreads
         
         # check input parameters
-        solve_path_param_sanity_check(alpha, nlambda, ratio_lambda)
+        for a_ in alpha:
+            solve_path_param_sanity_check(a_, nlambda, ratio_lambda)
         
         lambda_max = self.kkt_beta_zero_multi_threads(alpha, nthreads=nthreads)
         lambda_seq = get_lambda_seq(lambda_max, nlambda, ratio_lambda)
@@ -160,13 +167,19 @@ class Model1Geno:
                 solve_path_by_snplist__, args_by_worker
             ) 
         
-        beta_list, niter_list, tol_list = [], [], []
-        for b, n, t in res:
-            beta_list.append(b)
-            niter_list.append(n)
-            tol_list.append(t)
-        beta_merged = np.concatenate(beta_list, axis=0)
-        return beta_merged, lambda_seq, niter_list, tol_list
+        beta_list = init_nested_list(len(alpha), len(offset))
+        niter_list = init_nested_list(len(alpha), len(offset))
+        tol_list = init_nested_list(len(alpha), len(offset))
+
+        for i in range(len(alpha)):
+            for j in range(len(offset)):
+                for b, n, t in res:
+                    beta_list[i][j].append(b[i][j])
+                    niter_list[i][j].append(n[i][j])
+                    tol_list[i][j].append(t[i][j])
+                beta_list[i][j] = np.concatenate(beta_list[i][j], axis=0)
+                
+        return beta_list, lambda_seq, niter_list, tol_list
     
     def _varx1_args(self):
         o = []
@@ -184,9 +197,9 @@ class Model1Geno:
             o.append(
                 {
                     'snplist': self.snplist[i], 
-                    'lambda_seq': lambda_seq, 
-                    'alpha': alpha, 
-                    'offset': offset, 
+                    'lambda_seq_list': lambda_seq, 
+                    'alpha_list': alpha, 
+                    'offset_list': offset, 
                     'tol': tol, 
                     'maxiter': maxiter,
                     'data_args': {

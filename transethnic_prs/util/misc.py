@@ -74,4 +74,11 @@ def list_is_equal(l1, l2):
     for n1, n2 in zip(l1, l2):
         if n1 != n2:
             return False
-    return True    
+    return True 
+
+def init_nested_list(n1, n2):
+    '''
+    n1 x [ n2 x [] ]
+    '''
+    return [ [ [] for i in range(n2) ] for j in range(n1) ]   
+    
