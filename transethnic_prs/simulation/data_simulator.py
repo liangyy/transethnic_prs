@@ -1,16 +1,19 @@
 import numpy as np
+from tqdm import tqdm
 
 from transethnic_prs.util.math import diag_mul_mat, mat_mul_diag
 from transethnic_prs.util.misc import check_np_darray
 from transethnic_prs.util.linear_model import fast_simple_linear_regression
 
 class DataSimulator:
-    def __init__(self, X, beta, VarX=None):
+    def __init__(self, X, beta, VarX=None, no_chol=False, disable_progress_bar=False):
         nx, pxs = self._set_x(X)
         self._set_beta(beta, pxs)
+        self.pxs = pxs
         self.nx = nx
         self._set_varx(VarX)
-        self._calc_chol()
+        if no_chol is False:
+            self._calc_chol(disable_progress_bar=disable_progress_bar)
         self._calc_sigma2g()
     def _set_x(self, X):
         pxs = []
@@ -54,9 +57,9 @@ class DataSimulator:
         for beta, varx in zip(self.beta, self.VarX):
             sigma2g += beta.T @ (varx @ beta)
         self.sigma2g = sigma2g 
-    def _calc_chol(self, thres=1e-10):
+    def _calc_chol(self, thres=1e-10, disable_progress_bar=True):
         chol_varx = []
-        for varx in self.VarX:
+        for varx in tqdm(self.VarX, disable=disable_progress_bar):
             w, v = np.linalg.eigh(varx)
             v = v[:, np.abs(w) > thres]
             w = w[np.abs(w) > thres]
@@ -65,6 +68,9 @@ class DataSimulator:
             v = mat_mul_diag(v, np.sqrt(w))
             chol_varx.append(v)
         self.chol_varx = chol_varx
+    def update_beta(self, beta):
+        self._set_beta(beta, self.pxs)
+        self._calc_sigma2g()
     def sim_gwas(self, h2, sample_size):
         vary = self.sigma2g / h2
         prefactor = np.sqrt(vary / sample_size)
