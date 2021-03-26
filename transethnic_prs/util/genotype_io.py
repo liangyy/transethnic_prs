@@ -266,9 +266,9 @@ def load_genotype_from_bedfile(
     # impute genotype missing value
     miss_x, miss_y = np.where(np.isnan(geno))
     geno[(miss_x, miss_y)] = maf[miss_y] * 2
-    var_geno = 2 * maf * (1 - maf)
     
     # keep only genotypes with variance != 0
+    var_geno = np.var(geno, axis=0)  # 2 * maf * (1 - maf)
     to_keep = var_geno != 0
     geno = geno[:, to_keep]
     if return_snp is True:
