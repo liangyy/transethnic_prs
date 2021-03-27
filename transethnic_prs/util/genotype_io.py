@@ -31,7 +31,7 @@ class PlinkBedIO:
         if CHRNUM_WILDCARD in self.bedfile_pattern:
             if chrom is None:
                 chrom = self.chromosomes[0]
-            return re.sub(CHRNUM_WILDCARD, chrom, self.bedfile_pattern)
+            return re.sub(CHRNUM_WILDCARD, str(chrom), self.bedfile_pattern)
         else:
             return self.bedfile_pattern
     def _set_chromosomes(self, chroms):
@@ -80,7 +80,7 @@ class PlinkBedIO:
         self.indiv_active_idx = indiv_idx
     def _get_snp_idx(self, snps):
         if isinstance(self.snp_all, OrderedDict):
-            chrm = snps[0].split(SNPID_SEP)[0]
+            chrm = int(snps[0].split(SNPID_SEP)[0])
             snplist = self.snp_all[chrm]
             bedfile = self.get_bedfile(chrm)
         else:
