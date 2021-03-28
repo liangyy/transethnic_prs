@@ -3,6 +3,7 @@ from collections import OrderedDict
 import numpy as np
 import pandas as pd
 import string, re
+from tqdm import tqdm
 
 from pandas_plink import read_plink1_bin
 
@@ -19,14 +20,14 @@ SNPID_SEP = ':'
 CHRNUM_WILDCARD='{chr_num}'
 
 class PlinkBedIO:
-    def __init__(self, bedfile, chromosomes=None):
+    def __init__(self, bedfile, chromosomes=None, show_progress_bar=False):
         '''
         chromosomes only effective when bedfile contains CHRNUM_WILDCARD
         '''
         self.bedfile_pattern = bedfile
         self._set_chromosomes(chromosomes)
         self._set_indiv()
-        self._set_snplist()
+        self._set_snplist(show_progress_bar)
     def get_bedfile(self, chrom=None):
         if CHRNUM_WILDCARD in self.bedfile_pattern:
             if chrom is None:
@@ -53,12 +54,12 @@ class PlinkBedIO:
                     raise ValueError('When using wildcard, all chromosomes should have exactly the same individual list including the order.')
         self.indiv_all = np.array(indiv_list)
         self.indiv_active_idx = np.array([ i for i in range(len(indiv_list))])
-    def _set_snplist(self):
+    def _set_snplist(self, show_progress_bar=False):
         snplist = load_snplist(self.get_bedfile())
         if CHRNUM_WILDCARD in self.bedfile_pattern:
             snplist_dict = OrderedDict()
             snplist_dict[self.chromosomes[0]] = snplist
-            for cc in self.chromosomes[1:]:
+            for cc in tqdm(self.chromosomes[1:], disable=not show_progress_bar):
                 snplist_dict[cc] = load_snplist(self.get_bedfile(cc))
             snplist = snplist_dict
         self.snp_all = snplist
