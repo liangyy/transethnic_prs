@@ -199,13 +199,13 @@ def snpinfo_to_snpid(chrm, pos, a1, a2, return_complete=False):
         return pd.DataFrame({'idx': idxs, 'snpid': snpids, 'direction': directions})
     else:
         return pd.DataFrame({'idx': idxs, 'snpid': snpids, 'direction': directions, 'chr': clist, 'pos': plist, 'a1': a1list, 'a2': a2list})
-def load_snplist(bedfile):
+def load_snplist(bedfile, return_complete=False):
     G = read_plink1_bin(bedfile, verbose=False)
     a2 = list(G.variant.a0.to_series())
     a1 = list(G.variant.a1.to_series()) 
     pos = list(G.variant.pos.to_series())
     chrom = list(G.variant.chrom.to_series())
-    return snpinfo_to_snpid(chrom, pos, a1, a2)
+    return snpinfo_to_snpid(chrom, pos, a1, a2, return_complete=return_complete)
 
 def load_indiv(bedfile):
     G = read_plink1_bin(bedfile, verbose=False)
