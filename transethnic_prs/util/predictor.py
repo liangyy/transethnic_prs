@@ -1,3 +1,5 @@
+from collections import OrderedDict
+
 import pandas as pd
 
 import transethnic_prs.util.genotype_io as genoio
@@ -17,21 +19,40 @@ class Predictor:
             tmp.chrom, tmp.pos, tmp.a1, tmp.a2
         )
         tmp = tmp.iloc[ snps.idx, : ].reset_index(drop=True)
-        self.df_beta = pd.DataFrame({'snpid': snps.snpid, 'beta_idx': tmp.idx, 'direction': snps.direction})
+        tmp = pd.DataFrame({'snpid': snps.snpid, 'beta_idx': tmp.idx, 'direction': snps.direction})
+        df_beta_dict = OrderedDict()
+        for cc in tmp.chrom.unique():
+             df_beta_dict[cc] = tmp[ tmp.chrom == cc ].reset_index(drop=True)
+        self.df_beta_dict = df_beta_dict
     def _get_common_snps(self, loader):
         loader_snps = loader.get_snplist()
-        snps = intersect_two_lists(self.df_beta.snpid, loader_snps.snpid)
-        return list(self.df_beta[ self.df_beta.snpid.isin(snps) ].snpid)
+        snps_dict = OrderedDict()
+        for cc in self.df_beta_dict.keys():
+            kk = self.df_beta_dict[cc]
+            snps = intersect_two_lists(kk.snpid, loader_snps.snpid)
+            snps_dict[cc] = list(kk[ kk.snpid.isin(snps) ].snpid)
+        return snps_dict
     def predict(self, beta_mat, geno_loader):
-        snps = self._get_common_snps(geno_loader)
+        snps_dict = self._get_common_snps(geno_loader)
         geno = geno_loader.load(snps)
-        return self._predict(geno, beta_mat, snps)
-    def _predict(self, geno, beta_mat, snps):
+        return self._predict(geno, beta_mat, snps_dict)
+    def _predict(self, geno, beta_mat, snps_dict):
         '''
-        snps has the same order as self.df_beta
+        snps in snps_dict has the same order as df_beta in df_beta_dict
         '''
-        beta_idx_sub = list(self.df_beta[ self.df_beta.snpid.isin(snps) ].beta_idx)
-        beta_mat_sub = beta_mat[ beta_idx_sub, : ]
-        return geno @ beta_mat_sub
+        out = None
+        nsnp = 0
+        for cc in self.df_beta_dict.keys():
+            kk = self.df_beta_dict[cc]
+            beta_idx_sub = list(kk[ kk.snpid.isin(snps) ].beta_idx)
+            if len(beta_idx_sub) == 0:
+                continue
+            nsnp += len(beta_idx_sub)
+            beta_mat_sub = beta_mat[ beta_idx_sub, : ]
+            if out is None:
+                out = geno @ beta_mat_sub
+            else:
+                out += geno @ beta_mat_sub
+        return out, nsnp
     
         

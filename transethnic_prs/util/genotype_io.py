@@ -120,8 +120,8 @@ def parse_snpid(snp):
     chrm, pos, a1, a2 = [], [], [], []
     for i in snp:
         cc, pp, aa1, aa2 = i.split(SNPID_SEP)
-        chrm.append(cc)
-        pos.append(pp)
+        chrm.append(int(cc))
+        pos.append(int(pp))
         a1.append(aa1)
         a2.append(aa2)
     return pd.DataFrame({'chrom': chrm, 'pos': pos, 'a1': a1, 'a2': a2})
