@@ -85,12 +85,12 @@ class Model1Geno:
         self.y = mj.mean_center_col_1d_jax(df_y.y.values)
         self.pop2_loader = loader
     def _set_pop1_loader(self, pop1_bed):
-        if isinstance(pop2_bed, str):
+        if isinstance(pop1_bed, str):
             self.pop1_loader = genoio.PlinkBedIO(pop1_bed)
-        elif isinstance(pop2_bed, genoio.PlinkBedIO):
+        elif isinstance(pop1_bed, genoio.PlinkBedIO):
             self.pop1_loader = pop1_bed
         else:
-            raise TypeError('Wrong pop2_bed')
+            raise TypeError('Wrong pop1_bed')
         
     def _set_snp_and_b(self, snplist, bhatlist):
         if len(snplist) != len(bhatlist):
