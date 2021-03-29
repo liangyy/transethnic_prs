@@ -61,7 +61,12 @@ class Model1Geno:
         self.n_blk = len(self.snplist)
         self._set_varx1()
     def _set_y_and_pop2_loader(self, pop2_bed, df_y):
-        loader = genoio.PlinkBedIO(pop2_bed)
+        if isinstance(pop2_bed, str):
+            loader = genoio.PlinkBedIO(pop2_bed)
+        elif isinstance(pop2_bed, genoio.PlinkBedIO):
+            loader = pop2_bed
+        else:
+            raise TypeError('Wrong pop2_bed')
         # load individual in bed
         bed_indiv = loader.get_indiv()
         df_bed = pd.DataFrame({
@@ -80,7 +85,13 @@ class Model1Geno:
         self.y = mj.mean_center_col_1d_jax(df_y.y.values)
         self.pop2_loader = loader
     def _set_pop1_loader(self, pop1_bed):
-        self.pop1_loader = genoio.PlinkBedIO(pop1_bed)
+        if isinstance(pop2_bed, str):
+            self.pop1_loader = genoio.PlinkBedIO(pop1_bed)
+        elif isinstance(pop2_bed, genoio.PlinkBedIO):
+            self.pop1_loader = pop1_bed
+        else:
+            raise TypeError('Wrong pop2_bed')
+        
     def _set_snp_and_b(self, snplist, bhatlist):
         if len(snplist) != len(bhatlist):
             raise ValueError('snplist and blist have different length.')
