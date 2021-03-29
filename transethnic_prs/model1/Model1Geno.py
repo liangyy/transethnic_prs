@@ -207,6 +207,7 @@ class Model1Geno:
         for i in range(self.n_blk):
             o.append(
                 {
+                    'blk_idx': i,
                     'snplist': self.snplist[i], 
                     'lambda_seq_list': lambda_seq, 
                     'alpha_list': alpha, 
