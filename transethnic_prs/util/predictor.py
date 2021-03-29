@@ -19,10 +19,10 @@ class Predictor:
             tmp.chrom, tmp.pos, tmp.a1, tmp.a2
         )
         tmp = tmp.iloc[ snps.idx, : ].reset_index(drop=True)
-        tmp = pd.DataFrame({'snpid': snps.snpid, 'beta_idx': tmp.idx, 'direction': snps.direction})
+        tmp = pd.DataFrame({'snpid': snps.snpid, 'beta_idx': tmp.idx, 'direction': snps.direction, 'chrom': tmp.chrom})
         df_beta_dict = OrderedDict()
         for cc in tmp.chrom.unique():
-             df_beta_dict[cc] = tmp[ tmp.chrom == cc ].reset_index(drop=True)
+             df_beta_dict[cc] = tmp[ tmp.chrom == cc ].drop(columns='chrom').reset_index(drop=True)
         self.df_beta_dict = df_beta_dict
     def _get_common_snps(self, loader):
         loader_snps = loader.get_snplist()
