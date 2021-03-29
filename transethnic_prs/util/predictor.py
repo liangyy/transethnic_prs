@@ -34,25 +34,30 @@ class Predictor:
         return snps_dict
     def predict(self, beta_mat, geno_loader):
         snps_dict = self._get_common_snps(geno_loader)
-        geno = geno_loader.load(snps)
-        return self._predict(geno, beta_mat, snps_dict)
-    def _predict(self, geno, beta_mat, snps_dict):
-        '''
-        snps in snps_dict has the same order as df_beta in df_beta_dict
-        '''
         out = None
         nsnp = 0
-        for cc in self.df_beta_dict.keys():
-            kk = self.df_beta_dict[cc]
-            beta_idx_sub = list(kk[ kk.snpid.isin(snps) ].beta_idx)
-            if len(beta_idx_sub) == 0:
+        for cc in snps_dict.keys():
+            geno = geno_loader.load(snps)
+            out_i, nsnp_i = self._predict(geno, beta_mat, snps_dict, cc)
+            if nsnp_i == 0:
                 continue
-            nsnp += len(beta_idx_sub)
-            beta_mat_sub = beta_mat[ beta_idx_sub, : ]
             if out is None:
-                out = geno @ beta_mat_sub
+                out = out_i 
             else:
-                out += geno @ beta_mat_sub
+                out += out_i    
+            nsnp += nsnp_i
         return out, nsnp
+    def _predict(self, geno, beta_mat, snps_dict, chrom):
+        '''
+        Predict for a chromosome.
+        snps in snps_dict has the same order as df_beta in df_beta_dict
+        '''
+        kk = df_beta_dict[chrom]
+        beta_idx_sub = list(kk[ kk.snpid.isin(snps_dict[chrom]) ].beta_idx)
+        if len(beta_idx_sub) == 0:
+            return np.array([]), len(beta_idx_sub)
+        beta_mat_sub = beta_mat[ beta_idx_sub, : ]
+        return geno @ beta_mat_sub, len(beta_idx_sub)
+            
     
         
