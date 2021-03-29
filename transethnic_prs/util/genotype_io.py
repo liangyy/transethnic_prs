@@ -115,6 +115,16 @@ class PlinkBedIO:
             var_geno = 2 * maf * (1 - maf)
             geno = (geno - 2 * maf) / np.sqrt(var_geno)
         return geno
+
+def parse_snpid(snp):
+    chrm, pos, a1, a2 = [], [], [], []
+    for i in snp:
+        cc, pp, aa1, aa2 = i.split(':')
+        chrm.append(cc)
+        pos.append(pp)
+        a1.append(aa1)
+        a2.append(aa2)
+    return pd.DataFrame({'chrom': chrm, 'pos': pos, 'a1': a1, 'a2': a2})
         
 def get_complement(str_):
     o = ''

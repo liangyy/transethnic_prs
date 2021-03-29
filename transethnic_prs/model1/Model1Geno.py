@@ -224,3 +224,8 @@ class Model1Geno:
                 }
             )
         return o   
+    def get_snps(self):
+        snps = []
+        for i in self.snplist:
+            snps += i
+        return genoio.parse_snpid(snps)
