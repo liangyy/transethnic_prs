@@ -11,7 +11,7 @@ def calc_varx_(args):
     return calc_varx(*args)
 def solve_path_by_snplist__(args):
     idx = args['blk_idx']
-    print(f'Working on block idx = {idx}')
+    print(f'Working on block idx = {idx}', flush=True)
     del args['blk_idx']
     return solve_path_by_snplist(**args)
 # END

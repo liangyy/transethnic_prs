@@ -11,8 +11,8 @@ from multiprocessing import get_context
 import os
 # Limit ourselves to single-threaded jax/xla operations to avoid thrashing. See
 # https://github.com/google/jax/issues/743.
-os.environ["XLA_FLAGS"] = ("--xla_cpu_multi_thread_eigen=false "
-                           "intra_op_parallelism_threads=1")
+# os.environ["XLA_FLAGS"] = ("--xla_cpu_multi_thread_eigen=false "
+#                            "intra_op_parallelism_threads=1")
 
 import pandas as pd
 import numpy as np
