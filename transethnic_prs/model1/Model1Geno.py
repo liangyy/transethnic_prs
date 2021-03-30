@@ -7,14 +7,14 @@ it loads these arrays on the fly from PLINK BED file.
 CAUTION: We work with column mean centered genotype and y.
 '''
 
-# from multiprocessing import get_context
+from multiprocessing import get_context
 # import os
 # Limit ourselves to single-threaded jax/xla operations to avoid thrashing. See
 # https://github.com/google/jax/issues/743.
 # os.environ["XLA_FLAGS"] = ("--xla_cpu_multi_thread_eigen=false "
 #                            "intra_op_parallelism_threads=1")
 
-from joblib import Parallel, delayed
+# from joblib import Parallel, delayed
 
 import pandas as pd
 import numpy as np
@@ -129,24 +129,24 @@ class Model1Geno:
         self.blist = blist_new 
     def _set_varx1(self):
         args_by_worker = self._varx1_args()
-        # with get_context("spawn").Pool(self.nthreads) as pool:
-        #     self.varx1 = pool.map(
-        #         calc_varx_, args_by_worker
-        #     ) 
-        self.varx1 = Parallel(n_jobs=self.nthreads)(
-            delayed(calc_varx_)(argi) for argi in args_by_worker
-        )
+        with get_context("spawn").Pool(self.nthreads) as pool:
+            self.varx1 = pool.map(
+                calc_varx_, args_by_worker
+            ) 
+        # self.varx1 = Parallel(n_jobs=self.nthreads)(
+        #     delayed(calc_varx_)(argi) for argi in args_by_worker
+        # )
         
     def kkt_beta_zero_multi_threads(self, alpha, nthreads=None):
         args_by_worker = self._kkt_args(alpha)
         nthreads = self.nthreads if nthreads is None else nthreads
-        # with get_context("spawn").Pool(nthreads) as pool:
-        #     res = pool.map(
-        #         kkt_beta_zero_per_blk_, args_by_worker
-        #     )
-        res = Parallel(n_jobs=self.nthreads, backend='threading')(
-            delayed(kkt_beta_zero_per_blk_)(argi) for argi in args_by_worker
-        )
+        with get_context("spawn").Pool(nthreads) as pool:
+            res = pool.map(
+                kkt_beta_zero_per_blk_, args_by_worker
+            )
+        # res = Parallel(n_jobs=self.nthreads, backend='threading')(
+        #     delayed(kkt_beta_zero_per_blk_)(argi) for argi in args_by_worker
+        # )
         res = np.array(res)
         return list(res.max(axis=0))
     
@@ -182,13 +182,13 @@ class Model1Geno:
             tol=tol, 
             maxiter=maxiter
         )
-        # with get_context("spawn").Pool(nthreads) as pool:
-        #     res = pool.map(
-        #         solve_path_by_snplist__, args_by_worker
-        #     ) 
-        res = Parallel(n_jobs=self.nthreads, backend='threading')(
-            delayed(solve_path_by_snplist__)(argi) for argi in args_by_worker
-        )
+        with get_context("spawn").Pool(nthreads) as pool:
+            res = pool.map(
+                solve_path_by_snplist__, args_by_worker
+            ) 
+        # res = Parallel(n_jobs=self.nthreads, backend='threading')(
+        #     delayed(solve_path_by_snplist__)(argi) for argi in args_by_worker
+        # )
         
         beta_list = init_nested_list(len(alpha), len(offset))
         niter_list = init_nested_list(len(alpha), len(offset))
