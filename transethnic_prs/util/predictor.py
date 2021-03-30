@@ -37,7 +37,7 @@ class Predictor:
         out = None
         nsnp = 0
         for cc in snps_dict.keys():
-            geno = geno_loader.load(snps)
+            geno = geno_loader.load(snps_dict[cc])
             out_i, nsnp_i = self._predict(geno, beta_mat, snps_dict, cc)
             if nsnp_i == 0:
                 continue
@@ -46,13 +46,13 @@ class Predictor:
             else:
                 out += out_i    
             nsnp += nsnp_i
-        return out, nsnp
+        return out, geno_loader.get_indiv(), nsnp
     def _predict(self, geno, beta_mat, snps_dict, chrom):
         '''
         Predict for a chromosome.
         snps in snps_dict has the same order as df_beta in df_beta_dict
         '''
-        kk = df_beta_dict[chrom]
+        kk = self.df_beta_dict[chrom]
         beta_idx_sub = list(kk[ kk.snpid.isin(snps_dict[chrom]) ].beta_idx)
         if len(beta_idx_sub) == 0:
             return np.array([]), len(beta_idx_sub)
