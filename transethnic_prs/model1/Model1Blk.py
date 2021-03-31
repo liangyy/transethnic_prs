@@ -26,12 +26,11 @@ So, the problem being solved is actually:
 '''
 import numpy as np
 
-import transethnic_prs.model1.solve_by_dense_blk as ss 
+import transethnic_prs.model1.solve_by_dense_blk_numba as ssn 
 
 from transethnic_prs.model1.Model1Helper import *
 from transethnic_prs.util.misc import check_np_darray, list_is_equal
-from transethnic_prs.util.math_jax import calc_XXt_diag_jax, calc_Xy_jax, mean_center_col_2d_jax, mean_center_col_1d_jax
-
+import transethnic_prs.util.math_numba as mn
 
 
 class Model1Blk:
@@ -58,7 +57,7 @@ class Model1Blk:
         if not list_is_equal(na_list, px_list):
             raise ValueError('Different number of features between Alist and Xlist.')
         self.p = np.array(na_list).sum()
-        self.XtX_diag_list = [ calc_XXt_diag_jax(Xi) for Xi in self.Xtlist ] 
+        self.XtX_diag_list = [ mn.calc_XXt_diag_numba(Xi) for Xi in self.Xtlist ] 
     def _set_a_and_b(self, Alist, blist):
         if len(Alist) != len(blist):
             raise ValueError('Alist and blist have different length.')
@@ -86,14 +85,15 @@ class Model1Blk:
         if nx != ny:
             raise ValueError(f'X.shape[0] != y.shape[0].')
         # transpose X for speed concern 
-        self.Xtlist = [ mean_center_col_2d_jax(x).T for x in xlist ]
-        self.y = mean_center_col_1d_jax(y)   
+        # TODO: fix .T
+        self.Xtlist = [ mn.mean_center_col_2d_numba(x).T.copy() for x in xlist ]
+        self.y = mn.mean_center_col_1d_numba(y)   
         return px_list 
     
     def kkt_beta_zero(self, alpha):
         lambda_max = 0
         for b, xt in zip(self.blist, self.Xtlist):
-            xy = calc_Xy_jax(xt, self.y)
+            xy = mn.calc_Xy_numba(xt, self.y)
             lambda_max = max(
                 lambda_max, 
                 2 * np.absolute(b + xy).max() / alpha
@@ -105,7 +105,7 @@ class Model1Blk:
         init_obj_lik=None, init_l1_beta=None, init_l2_beta=None,
         XtX_diag_list=None
     ):
-        betalist, niter, diff, (tlist, rlist, obj_lik, l1_beta, l2_beta), _ = ss.solve_by_dense_blk(
+        betalist, niter, diff, (tlist, rlist, obj_lik, l1_beta, l2_beta) = ssn.solve_by_dense_blk_numba(
             self.Alist, self.blist, self.Xtlist, self.y, 
             init_beta=init_beta, 
             init_t=init_t, 
@@ -127,7 +127,7 @@ class Model1Blk:
         init_obj_lik=None, init_l1_beta=None, init_l2_beta=None,
         XtX_diag_list=None
     ):
-        betalist, niter, diff, (tlist, rlist, obj_lik, l1_beta, l2_beta), _ = ss.solve_by_dense_blk(
+        betalist, niter, diff, (tlist, rlist, obj_lik, l1_beta, l2_beta) = ssn.solve_by_dense_blk_numba(
             self.Alist[idx:(idx + 1)], self.blist[idx:(idx + 1)], self.Xtlist[idx:(idx + 1)], self.y, 
             init_beta=init_beta, 
             init_t=init_t, 

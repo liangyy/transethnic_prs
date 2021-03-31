@@ -182,10 +182,13 @@ class Model1Geno:
             tol=tol, 
             maxiter=maxiter
         )
+        
+        # breakpoint()
         with get_context("spawn").Pool(nthreads) as pool:
             res = pool.map(
                 solve_path_by_snplist__, args_by_worker
             ) 
+        # tmp = solve_path_by_snplist__(args_by_worker[0])
         # res = Parallel(n_jobs=self.nthreads, backend='threading')(
         #     delayed(solve_path_by_snplist__)(argi) for argi in args_by_worker
         # )
