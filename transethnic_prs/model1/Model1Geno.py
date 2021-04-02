@@ -7,19 +7,12 @@ it loads these arrays on the fly from PLINK BED file.
 CAUTION: We work with column mean centered genotype and y.
 '''
 
-from multiprocessing import get_context
-# import os
-# Limit ourselves to single-threaded jax/xla operations to avoid thrashing. See
-# https://github.com/google/jax/issues/743.
-# os.environ["XLA_FLAGS"] = ("--xla_cpu_multi_thread_eigen=false "
-#                            "intra_op_parallelism_threads=1")
-
-# from joblib import Parallel, delayed
+from multiprocessing import Pool
 
 import pandas as pd
 import numpy as np
 
-import transethnic_prs.util.math_jax as mj 
+import transethnic_prs.util.math_numba as mn 
 from transethnic_prs.util.misc import init_nested_list
 import transethnic_prs.util.genotype_io as genoio
 from transethnic_prs.model1.Model1Helper import *
@@ -42,7 +35,7 @@ class Model1Geno:
     
     Internally, snp as saved as chrm_pos_A1_A2 where A1_A2 follows rules specified in transethnic_prs.util.genotyp_io.snpinfo_to_snpid
     '''
-    def __init__(self, snplist, bhatlist, gwas_n_factor, df_y, pop1_bed, pop2_bed, nthreads=None):
+    def __init__(self, snplist, bhatlist, gwas_n_factor, df_y, pop1_bed, pop2_bed, nthreads=1):
         '''
         df_y: pd.DataFrame({
             'indiv': IID,
@@ -54,7 +47,7 @@ class Model1Geno:
         self.pop1_loader
         self.pop2_loader
         '''
-        self.nthreads = 1 if nthreads is None or not isinstance(nthreads, int) else nthreads
+        self.nthreads = self._check_n_return_nthreads(nthreads)
         self._set_y_and_pop2_loader(pop2_bed, df_y)
         self._set_pop1_loader(pop1_bed)
         self.gwas_n_factor = gwas_n_factor
@@ -62,6 +55,18 @@ class Model1Geno:
         self._update_to_common_snplist()
         self.n_blk = len(self.snplist)
         self._set_varx1()
+    @staticmethod
+    def _check_n_return_nthreads(nthreads):
+        if isinstance(nthreads, int):
+            return nthreads
+        else:
+            raise TypeError('nthreads can only be integer')
+    def _return_threads_for_now(self, nthreads):
+        if nthreads is not None:
+            nthreads = self._check_n_return_nthreads(nthreads)
+        else:
+            nthreads = self.nthreads
+        return nthreads
     def _set_y_and_pop2_loader(self, pop2_bed, df_y):
         if isinstance(pop2_bed, str):
             loader = genoio.PlinkBedIO(pop2_bed)
@@ -84,7 +89,7 @@ class Model1Geno:
         df_y = pd.merge(
             df_bed_in_both, df_y, on='indiv', how='left'
         )
-        self.y = mj.mean_center_col_1d_jax(df_y.y.values)
+        self.y = mn.mean_center_col_1d_numba(df_y.y.values)
         self.pop2_loader = loader
     def _set_pop1_loader(self, pop1_bed):
         if isinstance(pop1_bed, str):
@@ -129,28 +134,37 @@ class Model1Geno:
         self.blist = blist_new 
     def _set_varx1(self):
         args_by_worker = self._varx1_args()
-        with get_context("spawn").Pool(self.nthreads) as pool:
-            self.varx1 = pool.map(
-                calc_varx_, args_by_worker
-            ) 
-        # self.varx1 = Parallel(n_jobs=self.nthreads)(
-        #     delayed(calc_varx_)(argi) for argi in args_by_worker
-        # )
+        if self.nthreads == 1:
+            self.varx1 = []
+            for args in args_by_worker:
+                self.varx1.append(calc_varx_(args))
+        else:
+            with Pool(self.nthreads) as pool:
+                self.varx1 = pool.map(
+                    calc_varx_, args_by_worker
+                ) 
         
     def kkt_beta_zero_multi_threads(self, alpha, nthreads=None):
         args_by_worker = self._kkt_args(alpha)
-        nthreads = self.nthreads if nthreads is None else nthreads
-        with get_context("spawn").Pool(nthreads) as pool:
-            res = pool.map(
-                kkt_beta_zero_per_blk_, args_by_worker
-            )
+        nthreads = self._return_threads_for_now(nthreads)
+        if nthreads == 1:
+            res = []
+            for args in args_by_worker:
+                res.append(kkt_beta_zero_per_blk_(args))
+        else:
+            with Pool(nthreads) as pool:
+                res = pool.map(
+                    kkt_beta_zero_per_blk_, args_by_worker
+                )
+        
+        
         # res = Parallel(n_jobs=self.nthreads, backend='threading')(
         #     delayed(kkt_beta_zero_per_blk_)(argi) for argi in args_by_worker
         # )
         res = np.array(res)
         return list(res.max(axis=0))
     
-    def solve_path_by_blk(self, alpha=0.5, offset=0, tol=1e-5, maxiter=1000, nlambda=100, ratio_lambda=100, nthreads=None):
+    def solve_path_by_blk(self, alpha=0.5, offset=0, tol=1e-5, maxiter=1000, nlambda=100, ratio_lambda=100, nthreads=None, mode=None, lambda_seq=None):
         '''
         Same info as solve_path.
         But here we solve each block one at a time and combine at the end.
@@ -171,8 +185,9 @@ class Model1Geno:
         for a_ in alpha:
             solve_path_param_sanity_check(a_, nlambda, ratio_lambda)
         
-        lambda_max = self.kkt_beta_zero_multi_threads(alpha, nthreads=nthreads)
-        lambda_seq = get_lambda_seq(lambda_max, nlambda, ratio_lambda)
+        if lambda_seq is None:
+            lambda_max = self.kkt_beta_zero_multi_threads(alpha, nthreads=nthreads)
+            lambda_seq = get_lambda_seq(lambda_max, nlambda, ratio_lambda)
         # add the first solution (corresponds to lambda = lambda_max)
         
         args_by_worker = self._solve_path_by_snplist(
@@ -180,32 +195,36 @@ class Model1Geno:
             lambda_seq=lambda_seq, 
             offset=offset, 
             tol=tol, 
-            maxiter=maxiter
+            maxiter=maxiter,
+            mode=mode
         )
         
-        # breakpoint()
-        with get_context("spawn").Pool(nthreads) as pool:
-            res = pool.map(
-                solve_path_by_snplist__, args_by_worker
-            ) 
-        # tmp = solve_path_by_snplist__(args_by_worker[0])
-        # res = Parallel(n_jobs=self.nthreads, backend='threading')(
-        #     delayed(solve_path_by_snplist__)(argi) for argi in args_by_worker
-        # )
-        
+        nthreads = self._return_threads_for_now(nthreads)
+        if nthreads == 1:
+            res = []
+            for args in args_by_worker:
+                res.append(solve_path_by_snplist__(args))
+        else:
+            with Pool(nthreads) as pool:
+                res = pool.map(
+                    solve_path_by_snplist__, args_by_worker
+                ) 
+                
         beta_list = init_nested_list(len(alpha), len(offset))
         niter_list = init_nested_list(len(alpha), len(offset))
         tol_list = init_nested_list(len(alpha), len(offset))
+        conv_list = init_nested_list(len(alpha), len(offset))
 
         for i in range(len(alpha)):
             for j in range(len(offset)):
-                for b, n, t in res:
+                for b, n, t, conv in res:
                     beta_list[i][j].append(b[i][j])
                     niter_list[i][j].append(n[i][j])
                     tol_list[i][j].append(t[i][j])
+                    conv_list[i][j].append(conv[i][j])
                 beta_list[i][j] = np.concatenate(beta_list[i][j], axis=0)
                 
-        return beta_list, lambda_seq, niter_list, tol_list
+        return beta_list, lambda_seq, niter_list, tol_list, conv_list
     
     def _varx1_args(self):
         o = []
@@ -217,7 +236,7 @@ class Model1Geno:
         for i in range(self.n_blk):
             o.append((self.pop2_loader, self.blist[i], self.gwas_n_factor, self.varx1[i], self.snplist[i], self.y, alpha))
         return o
-    def _solve_path_by_snplist(self, alpha, lambda_seq, offset, tol, maxiter):
+    def _solve_path_by_snplist(self, alpha, lambda_seq, offset, tol, maxiter, mode):
         o = []
         for i in range(self.n_blk):
             o.append(
@@ -229,6 +248,7 @@ class Model1Geno:
                     'offset_list': offset, 
                     'tol': tol, 
                     'maxiter': maxiter,
+                    'mode': mode,
                     'data_args': {
                         'loader1': self.pop1_loader, 
                         'loader2': self.pop2_loader, 

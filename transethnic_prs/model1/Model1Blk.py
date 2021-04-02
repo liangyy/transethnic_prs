@@ -101,48 +101,36 @@ class Model1Blk:
         return lambda_max
     def solve(self, w1, w2, offset=0, tol=1e-5, maxiter=1000, return_raw=False, 
         # the following options only for internal use
-        init_beta=None, init_t=None, init_r=None, 
-        init_obj_lik=None, init_l1_beta=None, init_l2_beta=None,
-        XtX_diag_list=None
-    ):
-        betalist, niter, diff, (tlist, rlist, obj_lik, l1_beta, l2_beta) = ssn.solve_by_dense_blk_numba(
+        init_beta=None, init_t=None, init_r=None):
+        betalist, niter, diff, tlist, rlist, conv = ssn.solve_by_dense_blk_numba(
             self.Alist, self.blist, self.Xtlist, self.y, 
             init_beta=init_beta, 
             init_t=init_t, 
             init_r=init_r,
-            init_obj_lik=init_obj_lik,
-            init_l1_beta=init_l1_beta, 
-            init_l2_beta=init_l2_beta,
-            XtX_diag_list=XtX_diag_list,
+            XtX_diag_list=self.XtX_diag_list,
             w1=w1, w2=w2, tol=tol, maxiter=maxiter, offset=offset
         )
         if return_raw is False:
             beta = merge_list(betalist)
             return beta, niter, diff
         else:
-            return betalist, niter, diff, (tlist, rlist, obj_lik, l1_beta, l2_beta)
+            return betalist, niter, diff, (tlist, rlist, conv)
     def solve_by_blk(self, idx, w1, w2, offset=0, tol=1e-5, maxiter=1000, return_raw=False, 
         # the following options only for internal use
-        init_beta=None, init_t=None, init_r=None, 
-        init_obj_lik=None, init_l1_beta=None, init_l2_beta=None,
-        XtX_diag_list=None
-    ):
-        betalist, niter, diff, (tlist, rlist, obj_lik, l1_beta, l2_beta) = ssn.solve_by_dense_blk_numba(
-            self.Alist[idx:(idx + 1)], self.blist[idx:(idx + 1)], self.Xtlist[idx:(idx + 1)], self.y, 
+        init_beta=None, init_t=None, init_r=None):
+        betalist, niter, diff, tlist, rlist, conv = ssn.solve_by_dense_one_blk_numba(
+            self.Alist[idx], self.blist[idx], self.Xtlist[idx], self.y, 
             init_beta=init_beta, 
             init_t=init_t, 
             init_r=init_r,
-            init_obj_lik=init_obj_lik,
-            init_l1_beta=init_l1_beta, 
-            init_l2_beta=init_l2_beta,
-            XtX_diag_list=XtX_diag_list[idx:(idx + 1)],
+            XtX_diag=self.XtX_diag_list[idx],
             w1=w1, w2=w2, tol=tol, maxiter=maxiter, offset=offset
         )
         if return_raw is False:
             beta = merge_list(betalist)
             return beta, niter, diff
         else:
-            return betalist, niter, diff, (tlist, rlist, obj_lik, l1_beta, l2_beta)
+            return betalist, niter, diff, (tlist, rlist, conv)
     def solve_path_by_blk(self, alpha=0.5, offset=0, tol=1e-5, maxiter=1000, nlambda=100, ratio_lambda=100):
         '''
         Same info as solve_path.
@@ -160,36 +148,36 @@ class Model1Blk:
         beta_list = []
         niter_list = []
         tol_list = []
+        conv_list = []
         for i in range(len(self.Xtlist)):
             
             pp = self.Xtlist[i].shape[0]
             # initialize the beta mat (p x nlambda)
             beta_mat = np.zeros((pp, nlambda))
             # initialize niter and maxiter records
-            niter_vec, tol_vec = np.zeros(nlambda), np.zeros(nlambda)
+            niter_vec, tol_vec, conv_vec = np.zeros(nlambda), np.zeros(nlambda), - np.ones(nlambda)
             beta_mat[:, 0] = np.zeros(pp)
             # initialize beta, t, r
-            betalist, tlist, rlist, obj_lik, l1_beta, l2_beta = None, None, None, None, None, None
+            betalist, tlist, rlist = None, None, None
             # loop over lambda sequence skipping the first, lambda_max 
             for idx, lam in enumerate(lambda_seq):
                 # print('working on block = ', i, 'idx = ', idx)
                 if idx == 0:
                     continue
                 w1, w2 = alpha_lambda_to_w1_w2(alpha, lam)
-                betalist, niter_vec[idx], tol_vec[idx], (tlist, rlist, obj_lik, l1_beta, l2_beta) = self.solve_by_blk(
+                beta_vec, niter_vec[idx], tol_vec[idx], (tlist, rlist, conv_vec[idx]) = self.solve_by_blk(
                     w1=w1, w2=w2, idx=i,
                     tol=tol, maxiter=maxiter, offset=offset,
-                    init_beta=betalist, init_t=tlist, init_r=rlist, 
-                    init_obj_lik=obj_lik, init_l1_beta=l1_beta, init_l2_beta=l2_beta,
-                    XtX_diag_list=self.XtX_diag_list,
+                    init_beta=betalist, init_t=tlist, init_r=rlist,
                     return_raw=True
                 )
-                beta_mat[:, idx] = merge_list(betalist)
+                beta_mat[:, idx] = beta_vec
             beta_list.append(beta_mat)
             niter_list.append(niter_vec)
             tol_list.append(tol_vec)
+            conv_list.append(conv_vec)
         beta_merged = np.concatenate(beta_list, axis=0)
-        return beta_merged, lambda_seq, niter_list, tol_list
+        return beta_merged, lambda_seq, niter_list, tol_list, conv_list
         
     def solve_path(self, alpha=0.5, offset=0, tol=1e-5, maxiter=1000, nlambda=100, ratio_lambda=100):
         '''
@@ -208,29 +196,27 @@ class Model1Blk:
         # initialize the beta mat (p x nlambda)
         beta_mat = np.zeros((self.p, nlambda))
         # initialize niter and maxiter records
-        niter_vec, tol_vec = np.zeros(nlambda), np.zeros(nlambda)
+        niter_vec, tol_vec, conv_vec = np.zeros(nlambda), np.zeros(nlambda), - np.ones(nlambda)
         # determine lambda sequence
         lambda_max = self.kkt_beta_zero(alpha)
         lambda_seq = get_lambda_seq(lambda_max, nlambda, ratio_lambda)
         # add the first solution (corresponds to lambda = lambda_max)
         beta_mat[:, 0] = np.zeros(self.p)
         # initialize beta, t, r
-        betalist, tlist, rlist, obj_lik, l1_beta, l2_beta = None, None, None, None, None, None
+        betalist, tlist, rlist = None, None, None
         # loop over lambda sequence skipping the first, lambda_max
         for idx, lam in enumerate(lambda_seq):
             # print('working on idx = ', idx)
             if idx == 0:
                 continue
             w1, w2 = alpha_lambda_to_w1_w2(alpha, lam)
-            betalist, niter_vec[idx], tol_vec[idx], (tlist, rlist, obj_lik, l1_beta, l2_beta) = self.solve(
+            betalist, niter_vec[idx], tol_vec[idx], (tlist, rlist, conv_vec[idx]) = self.solve(
                 w1=w1, w2=w2, tol=tol, maxiter=maxiter, offset=offset,
-                init_beta=betalist, init_t=tlist, init_r=rlist, 
-                init_obj_lik=obj_lik, init_l1_beta=l1_beta, init_l2_beta=l2_beta,
-                XtX_diag_list=self.XtX_diag_list,
+                init_beta=betalist, init_t=tlist, init_r=rlist,
                 return_raw=True
             )
             beta_mat[:, idx] = merge_list(betalist)
-        return beta_mat, lambda_seq, niter_vec, tol_vec
+        return beta_mat, lambda_seq, niter_vec, tol_vec, conv_vec
         
         
     

@@ -3,28 +3,26 @@ import numpy as np
 
 from transethnic_prs.util.math_numba import soft_thres_numba
 
+
+
 def solve_by_dense_blk_numba(Alist, blist, Xtlist, y, XtX_diag_list, w1, w2, offset=0, tol=1e-5, maxiter=1000,
-    init_beta=None, init_t=None, init_r=None, init_obj_lik=None, 
-    init_l1_beta=None, init_l2_beta=None):
+    init_beta=None, init_t=None, init_r=None):
     
     # init
     if init_beta is None:
-        beta, t, r, obj_lik, l1_beta, l2_beta = _init_beta_as_zeros_list(Alist, y)
+        beta, t, r = _init_beta_as_zeros_list(Alist, y)
     else:
-        beta, t, r, obj_lik, l1_beta, l2_beta = init_beta, init_t, init_r, init_obj_lik, init_l1_beta, init_l2_beta
+        beta, t, r = init_beta, init_t, init_r
     
     offset_list = [ offset * ai.diagonal() for ai in Alist ]
-    obj0 = obj_lik + _eval_penalty(l1_beta, l2_beta, w1, w2) 
+    
     diff = tol + 1
     niter = 0
     while diff > tol and niter < maxiter:
-        beta_Abeta = 0.
-        beta_b = 0.
-        l1_beta = 0.
-        l2_beta = 0.
+        diff = 0.
         for blk, A_blk in enumerate(Alist):
             p_blk = A_blk.shape[0]
-            beta[blk], _, _, t[blk], r, _, l1_beta_i, l2_beta_i, beta_Abeta_i, beta_b_i = solve_by_dense_blk_numba_(
+            beta[blk], _, diff_, t[blk], r, _ = solve_by_dense_blk_numba_(
                 A=A_blk, 
                 b=blist[blk], 
                 Xt=Xtlist[blk], 
@@ -37,32 +35,26 @@ def solve_by_dense_blk_numba(Alist, blist, Xtlist, y, XtX_diag_list, w1, w2, off
                 beta=beta[blk], 
                 t=t[blk], 
                 r=r, 
-                obj_lik=0., 
-                l1_beta=0., 
-                l2_beta=0., 
                 XtX_diag=XtX_diag_list[blk]
             )
-            beta_Abeta += beta_Abeta_i
-            beta_b += beta_b_i
-            l1_beta += l1_beta_i
-            l2_beta += l2_beta_i
-        obj_lik = _eval_obj_lik_numba(beta_Abeta, beta_b, r)
-        obj_penalty = _eval_penalty(l1_beta, l2_beta, w1, w2)
-        obj = obj_lik + obj_penalty
-        diff = obj0 - obj
-        obj0 = obj
+            if diff < diff_:
+                diff = diff_
         niter += 1
-    return beta, niter, diff, (t, r, obj_lik, l1_beta, l2_beta)
+    if diff <= tol:
+        conv = 1
+    else:
+        conv = 0
+    return beta, niter, diff, t, r, conv
 
+# solve with X1.T @ X1
 def solve_by_dense_one_blk_numba(A, b, Xt, y, XtX_diag, w1, w2, offset=0, tol=1e-5, maxiter=1000,
-    init_beta=None, init_t=None, init_r=None, init_obj_lik=None, 
-    init_l1_beta=None, init_l2_beta=None):
+    init_beta=None, init_t=None, init_r=None):
     
     # init
     if init_beta is None:
-        beta, t, r, obj_lik, l1_beta, l2_beta = _init_beta_as_zeros(A, y)
+        beta, t, r = _init_beta_as_zeros(A, y)
     else:
-        beta, t, r, obj_lik, l1_beta, l2_beta = init_beta, init_t, init_r, init_obj_lik, init_l1_beta, init_l2_beta
+        beta, t, r = init_beta, init_t, init_r
     
     offset = offset * A.diagonal()
     
@@ -79,25 +71,102 @@ def solve_by_dense_one_blk_numba(A, b, Xt, y, XtX_diag, w1, w2, offset=0, tol=1e
         'beta': beta, 
         't': t, 
         'r': r, 
-        'obj_lik': obj_lik, 
-        'l1_beta': l1_beta, 
-        'l2_beta': l2_beta, 
         'XtX_diag': XtX_diag
     }
     return solve_by_dense_blk_numba_(**args)
 
+# solve with X1
+def solve_by_dense_one_blk_X_numba(X_info_list, b, Xt, y, XtX_diag, w1, w2, offset=0, tol=1e-5, maxiter=1000,
+    init_beta=None, init_t=None, init_r=None):
+    
+    # init
+    if init_beta is None:
+        beta, t, r = _init_beta_as_zeros_X(X_info_list[0], y)
+    else:
+        beta, t, r, = init_beta, init_t, init_r
+    
+    offset = offset * X_info_list[1]
+    
+    args_ = { 
+        'X1t': X_info_list[0],
+        'XtX1_diag': X_info_list[1], 
+        'b': b, 
+        'Xt': Xt, 
+        'y': y, 
+        'w1': w1, 
+        'w2': w2, 
+        'offset': offset, 
+        'tol': tol, 
+        'maxiter': maxiter,
+        'beta': beta, 
+        't': t, 
+        'r': r, 
+        'XtX_diag': XtX_diag
+    }
+    # breakpoint()
+    return solve_by_dense_blk_X_numba_(**args_)
 
-@nb.jit(nb.float64(nb.float64, nb.float64, nb.float64[::1]))
-def _eval_obj_lik_numba(beta_Abeta, beta_b, resid):
-    return beta_Abeta - 2 * beta_b + resid.T @ resid 
 
-@nb.jit(nb.float64(nb.float64, nb.float64, nb.float64, nb.float64))
-def _eval_penalty(l1_beta, l2_beta, w1, w2):
-    return w1 * l1_beta + w2 * l2_beta
+# @nb.jit(nb.float64(nb.float64, nb.float64, nb.float64[::1]))
+# def _eval_obj_lik_numba(beta_Abeta, beta_b, resid):
+#     return beta_Abeta - 2 * beta_b + resid.T @ resid 
+#
+# @nb.jit(nb.float64(nb.float64, nb.float64, nb.float64, nb.float64))
+# def _eval_penalty(l1_beta, l2_beta, w1, w2):
+#     return w1 * l1_beta + w2 * l2_beta
 
-@nb.jit(nb.types.Tuple((nb.float64[::1], nb.int64, nb.float64, nb.float64[::1], nb.float64[::1], nb.float64, nb.float64, nb.float64, \
+@nb.jit(nb.types.Tuple((nb.float64[::1], nb.int64, nb.float64, nb.float64[::1], nb.float64[::1], nb.int64))\
+(nb.float64[:, ::1], \
+nb.float64[::1], \
+nb.float64[::1], \
+nb.float64[:, ::1], \
+nb.float64[::1], \
 nb.float64, \
-nb.float64))\
+nb.float64, \
+nb.float64[::1], \
+nb.float64, \
+nb.int64, \
+nb.float64[::1], \
+nb.float64[::1], \
+nb.float64[::1], \
+nb.float64[::1]))
+def solve_by_dense_blk_X_numba_(X1t, XtX1_diag, b, Xt, y, w1, w2, offset, tol, maxiter, beta, t, r, XtX_diag):
+    diff = tol + 1
+    niter = 0
+    while diff > tol and niter < maxiter:
+        diff = 0.
+        for j in range(X1t.shape[0]):
+            beta_j = beta[j]
+            Xj = Xt[j, :]
+            X1j = X1t[j, :]
+        
+            if beta_j != 0:
+                r = r + Xj * beta_j
+                t = t - X1j * beta_j
+        
+            a = XtX1_diag[j] + XtX_diag[j] + w2 + offset[j]
+            c = t.T @ X1j - b[j] - r.T @ Xj
+        
+            beta_j_new = - soft_thres_numba(2 * c, w1) / a / 2
+        
+            if beta_j_new != 0:
+                r = r - Xj * beta_j_new
+                t = t + X1j * beta_j_new
+            
+            diff_ = np.abs(beta[j] - beta_j_new)
+            if diff < diff_:
+                diff = diff_
+                 
+            beta[j] = beta_j_new
+        
+        niter += 1
+    if diff <= tol:
+        conv = 1
+    else:
+        conv = 0
+    return beta, niter, diff, t, r, conv
+
+@nb.jit(nb.types.Tuple((nb.float64[::1], nb.int64, nb.float64, nb.float64[::1], nb.float64[::1], nb.int64))\
 (nb.float64[:, ::1], \
 nb.float64[::1], \
 nb.float64[:, ::1], \
@@ -110,19 +179,12 @@ nb.int64, \
 nb.float64[::1], \
 nb.float64[::1], \
 nb.float64[::1], \
-nb.float64, \
-nb.float64, \
-nb.float64, \
 nb.float64[::1]))
-def solve_by_dense_blk_numba_(A, b, Xt, y, w1, w2, offset, tol, maxiter, beta, t, r, obj_lik, l1_beta, l2_beta, XtX_diag):
-    obj0 = obj_lik + _eval_penalty(l1_beta, l2_beta, w1, w2) 
+def solve_by_dense_blk_numba_(A, b, Xt, y, w1, w2, offset, tol, maxiter, beta, t, r, XtX_diag):
     diff = tol + 1
     niter = 0
     while diff > tol and niter < maxiter:
-        beta_Abeta = 0.
-        beta_b = 0.
-        l1_beta = 0.
-        l2_beta = 0.
+        diff = 0.
         for j in range(A.shape[0]):
             beta_j = beta[j]
             # Xj = X[:, j]
@@ -152,40 +214,38 @@ def solve_by_dense_blk_numba_(A, b, Xt, y, w1, w2, offset, tol, maxiter, beta, t
                 r = r - Xj * beta_j_new
                 t = t + A[j, :] * beta_j_new
             # t = t - A[j, :] * (beta_j - beta_j_new)
-        
+            
+            diff_ = np.abs(beta[j] - beta_j_new)
+            if diff < diff_:
+                diff = diff_
+            
             beta[j] = beta_j_new
         
-        beta_Abeta += beta.T @ t + (np.power(beta, 2) * offset).sum()  
-        beta_b += b.T @ beta
-        l1_beta += np.abs(beta).sum()
-        l2_beta += np.power(beta, 2).sum()   
-        obj_lik = _eval_obj_lik_numba(beta_Abeta, beta_b, r)
-        obj_penalty = _eval_penalty(l1_beta, l2_beta, w1, w2)
-        obj = obj_lik + obj_penalty
-        diff = obj0 - obj
-        obj0 = obj
+        
         niter += 1
-    return beta, niter, diff, t, r, obj_lik, l1_beta, l2_beta, beta_Abeta, beta_b
+    if diff <= tol:
+        conv = 1
+    else:
+        conv = 0
+    return beta, niter, diff, t, r, conv
 
 def _init_beta_as_zeros(A, y):
     beta = np.zeros(A.shape[0]) * 0.
     t = np.zeros(A.shape[0]) * 0.
     r = y - 0.
-    # solve obj_lik directly since beta = 0
-    obj_lik = (r.T @ r).sum()
-    l1_beta = 0.
-    l2_beta = 0.
-    return beta, t, r, obj_lik, l1_beta, l2_beta
+    return beta, t, r
+
+def _init_beta_as_zeros_X(Xt, y):
+    beta = np.zeros(Xt.shape[0]) * 0.
+    t = np.zeros(Xt.shape[1]) * 0.
+    r = y - 0.
+    return beta, t, r
 
 def _init_beta_as_zeros_list(Alist, y):
     beta = [ np.zeros(A_blk.shape[0]) * 0. for A_blk in Alist ]
     t = [ np.zeros(A_blk.shape[0]) * 0. for A_blk in Alist ]
     r = y - 0.
-    # solve obj_lik directly since beta = 0
-    obj_lik = (r.T @ r).sum()
-    l1_beta = 0.
-    l2_beta = 0.
-    return beta, t, r, obj_lik, l1_beta, l2_beta
+    return beta, t, r
 
 # @jit
 # def _dense_blk_update(val):
