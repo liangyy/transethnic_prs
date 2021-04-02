@@ -14,6 +14,9 @@ And depending on the parameterization, we introduce lasso, group lasso, or spars
 
 Detailed notes will come soon! TODO!  
 
+# Important notes
+
+* We assume that the phenotype is standardized. This is required so that the coefficients will always be kept in a fixed scale which does not depend on the phenotype scale. 
 
 <!-- # Running unittest
 
