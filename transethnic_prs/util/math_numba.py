@@ -40,5 +40,9 @@ def calc_covx_numba(mat):
 @nb.jit(nb.float64[::1](nb.float64[::1]))
 def standardize_1d_numba(x):
     x = mean_center_col_1d_numba(x)
-    return x / np.sqrt((x ** 2).mean())
+    denom = np.sqrt((x ** 2).mean())
+    if denom == 0:
+        return x
+    else:
+        return x / denome
     
