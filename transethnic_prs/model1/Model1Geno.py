@@ -4,7 +4,7 @@ ONLY solve_by_blk is implemented.
 TODO: implement solve even though it cannot use multithreading.
 But instead of requiring Alist and Xlist being np.dnarray in memory, 
 it loads these arrays on the fly from PLINK BED file. 
-CAUTION: We work with column mean centered genotype and y.
+CAUTION: We work with column mean centered genotype and standardized y (std = 1).
 '''
 
 from multiprocessing import Pool
@@ -28,7 +28,7 @@ class Model1Geno:
     '''
     snplist = [ snplist_1, ..., snplist_k ]
     blist = [ b1, ..., bk ]
-    y = y
+    y = standardized(y)
     pop1_bed = PLINK BED for A
     pop2_bed = PLINK BED for X
     snplist_i = pd.DataFrame({'chr', 'pos', 'a1', 'a2'})
@@ -89,7 +89,7 @@ class Model1Geno:
         df_y = pd.merge(
             df_bed_in_both, df_y, on='indiv', how='left'
         )
-        self.y = mn.mean_center_col_1d_numba(df_y.y.values)
+        self.y = mn.standardize_1d_numba(df_y.y.values)
         self.pop2_loader = loader
     def _set_pop1_loader(self, pop1_bed):
         if isinstance(pop1_bed, str):

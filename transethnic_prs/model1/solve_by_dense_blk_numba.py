@@ -15,8 +15,6 @@ def solve_by_dense_blk_numba(Alist, blist, Xtlist, y, XtX_diag_list, w1, w2, off
         beta, t, r = init_beta, init_t, init_r
     
     offset_list = [ offset * ai.diagonal() for ai in Alist ]
-    if offset > 0:
-        Alist = [ (1 - offset) * ai for ai in Alist ]
     
     diff = tol + 1
     niter = 0
@@ -58,9 +56,7 @@ def solve_by_dense_one_blk_numba(A, b, Xt, y, XtX_diag, w1, w2, offset=0, tol=1e
     else:
         beta, t, r = init_beta, init_t, init_r
     
-    offset_vec = offset * A.diagonal()
-    if offset > 0:
-        A = (1 - offset) * A
+    offset = offset * A.diagonal()
     
     args = { 
         'A': A, 
@@ -69,7 +65,7 @@ def solve_by_dense_one_blk_numba(A, b, Xt, y, XtX_diag, w1, w2, offset=0, tol=1e
         'y': y, 
         'w1': w1, 
         'w2': w2, 
-        'offset': offset_vec, 
+        'offset': offset, 
         'tol': tol, 
         'maxiter': maxiter,
         'beta': beta, 
@@ -89,23 +85,18 @@ def solve_by_dense_one_blk_X_numba(X_info_list, b, Xt, y, XtX_diag, w1, w2, offs
     else:
         beta, t, r, = init_beta, init_t, init_r
     
-    offset_vec = offset * X_info_list[1]
-    if offset > 0:
-        X1t = np.sqrt(1 - offset) * X_info_list[0]
-        XtX1_diag = (1 - offset) * X_info_list[1]
-    else:
-        X1t = X_info_list[0]
-        XtX1_diag = X_info_list[1]
+    offset = offset * X_info_list[1]
+    
         
     args_ = { 
-        'X1t': X1t,
-        'XtX1_diag': XtX1_diag, 
+        'X1t': X_info_list[0],
+        'XtX1_diag': X_info_list[1], 
         'b': b, 
         'Xt': Xt, 
         'y': y, 
         'w1': w1, 
         'w2': w2, 
-        'offset': offset_vec, 
+        'offset': offset, 
         'tol': tol, 
         'maxiter': maxiter,
         'beta': beta, 

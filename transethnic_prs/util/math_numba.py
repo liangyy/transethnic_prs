@@ -36,8 +36,9 @@ def calc_varx_numba(mat):
 @nb.jit(nb.float64[:, ::1](nb.float64[:, ::1]))
 def calc_covx_numba(mat):
     return np.cov(mat)
-# 
-# @jit
-# def scale_array_list_jax(array_list, factor):
-#     return [ x * factor for x in array_list ]
+    
+@nb.jit(nb.float64[::1](nb.float64[::1]))
+def standardize_1d_numba(x):
+    x = mean_center_col_1d_numba(x)
+    return x / np.sqrt((x ** 2).mean())
     
