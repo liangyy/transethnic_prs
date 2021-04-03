@@ -76,9 +76,12 @@ def list_is_equal(l1, l2):
             return False
     return True 
 
-def init_nested_list(n1, n2):
+def init_nested_list(n1, n2, n3=None):
     '''
-    n1 x [ n2 x [] ]
+    n1 x [ n2 x [ (n3 x []) ] ]
     '''
-    return [ [ [] for i in range(n2) ] for j in range(n1) ]   
+    if n3 is None:
+        return [ [ [] for i in range(n2) ] for j in range(n1) ]  
+    else:
+        return  [ [ [ [] for k in range(n3) ] for i in range(n2) ] for j in range(n1) ]  
     

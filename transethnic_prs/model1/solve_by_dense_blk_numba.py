@@ -3,7 +3,17 @@ import numpy as np
 
 from transethnic_prs.util.math_numba import soft_thres_numba
 
+'''
+A = X1.T @ X1
+b = X1.T @ y1
+Xt = X2.T
+XtX_diag = diag(X2.T @ X2)
+y = y2
 
+Objective:
+
+argmin_x x' A x - 2 b' x + offset * x' diag(A) x + || y2 - X2 x ||_2^2 + w1 ||x||_1 + w2 ||x||_2^2  
+'''
 
 def solve_by_dense_blk_numba(Alist, blist, Xtlist, y, XtX_diag_list, w1, w2, offset=0, tol=1e-5, maxiter=1000,
     init_beta=None, init_t=None, init_r=None):

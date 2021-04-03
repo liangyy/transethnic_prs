@@ -1,15 +1,21 @@
 import numpy as np
+from collections import OrderedDict
 
 def get_lambda_seq(lambda_max, nlambda, ratio_lambda):
-    if not isinstance(lambda_max, list):
-        lambda_min = lambda_max / ratio_lambda
-        return np.exp(np.linspace(np.log(lambda_max), np.log(lambda_min), num=nlambda))
-    else:
+    if isinstance(lambda_max, list):
         o = []
         for lm in lambda_max:
             lambda_min = lm / ratio_lambda
             o.append(np.exp(np.linspace(np.log(lm), np.log(lambda_min), num=nlambda)))
         return o
+    elif isinstance(lambda_max, OrderedDict):
+        o_dict = OrderedDict()
+        for w in lambda_max.keys():
+            o_dict[w] = get_lambda_seq(lambda_max[w], nlambda, ratio_lambda)
+        return o_dict
+    else:
+        lambda_min = lambda_max / ratio_lambda
+        return np.exp(np.linspace(np.log(lambda_max), np.log(lambda_min), num=nlambda))
 def alpha_lambda_to_w1_w2(alpha, lambda_):
     '''
     w1 = lambda * alpha

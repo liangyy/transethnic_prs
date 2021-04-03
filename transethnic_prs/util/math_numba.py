@@ -44,5 +44,5 @@ def standardize_1d_numba(x):
     if denom == 0:
         return x
     else:
-        return x / denome
+        return x / denom
     
