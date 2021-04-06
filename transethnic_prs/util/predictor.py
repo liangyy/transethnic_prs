@@ -1,6 +1,7 @@
 from collections import OrderedDict
 
 import pandas as pd
+import numpy as np
 
 import transethnic_prs.util.genotype_io as genoio
 from transethnic_prs.util.misc import intersect_two_lists
@@ -11,6 +12,8 @@ class Predictor:
     def _init_beta(self, df_beta):
         tmp = df_beta.copy()
         tmp['idx'] = [ i for i in range(tmp.shape[0]) ]
+        tmp.chrom = tmp.chrom.astype(int)
+        tmp.pos = tmp.pos.astype(int)
         tmp.sort_values(
             by=['chrom', 'pos', 'a1', 'a2'], 
             inplace=True, ignore_index=True
@@ -56,7 +59,8 @@ class Predictor:
         beta_idx_sub = list(kk[ kk.snpid.isin(snps_dict[chrom]) ].beta_idx)
         if len(beta_idx_sub) == 0:
             return np.array([]), len(beta_idx_sub)
-        beta_mat_sub = beta_mat[ beta_idx_sub, : ]
+        direction_sub = kk[ kk.snpid.isin(snps_dict[chrom]) ].direction.values[:, np.newaxis]
+        beta_mat_sub = beta_mat[ beta_idx_sub, : ] * direction_sub
         return geno @ beta_mat_sub, len(beta_idx_sub)
             
     
