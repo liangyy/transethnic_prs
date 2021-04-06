@@ -114,7 +114,8 @@ class PlinkBedIO:
         if standardize is True:
             var_geno = 2 * maf * (1 - maf)
             geno = (geno - 2 * maf) / np.sqrt(var_geno)
-        return geno
+        # TODO: is copy necessary? it is added to ensure C array
+        return geno.copy()
 
 def parse_snpid(snp):
     chrm, pos, a1, a2 = [], [], [], []

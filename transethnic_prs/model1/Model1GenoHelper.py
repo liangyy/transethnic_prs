@@ -16,15 +16,13 @@ def calc_varx_(args):
 def solve_path_by_snplist__(args):
     idx = args['blk_idx']
     t0 = time.time()
-    print(f'Working on block idx = {idx}', flush=True)
+    if args['message'] > 0:
+        print(f'Working on block idx = {idx}', flush=True)
     del args['blk_idx']
     tmp = solve_path_by_snplist(**args)
     t1 = time.time()
-    # print('call again')
-    # _ = solve_path_by_snplist(**args)
-    # t2 = time.time()
-    # print('time1 = ', t1 - t0, ' time2 = ', t2 - t1, flush=True)
-    print('time1 = ', t1 - t0, flush=True)
+    if args['message'] > 0:
+        print('time1 = ', t1 - t0, flush=True)
     return tmp  # solve_path_by_snplist(**args)
 # END
 
@@ -46,7 +44,7 @@ def calc_varx(loader, snps):
     return mn.calc_varx_numba(loader.load(snps))
 
 
-def solve_by_snplist(snplist, w1, w2, y, loader1=None, loader2=None, gwas_sample_size=None, gwas_bhat=None, A=None, b=None, X2t=None, mode=None, offset=0, w=1, tol=1e-5, maxiter=1000,
+def solve_by_snplist(snplist, w1, w2, y, loader1=None, loader2=None, gwas_sample_size=None, gwas_bhat=None, A=None, b=None, X2t=None, mode=None, offset=0, w=1, tol=1e-5, maxiter=1000, message=0,
     return_raw=False, 
     # the following options only for internal use
     init_beta=None, init_t=None, init_r=None, 
@@ -82,7 +80,7 @@ def solve_by_snplist(snplist, w1, w2, y, loader1=None, loader2=None, gwas_sample
         X2t = mn.mean_center_col_2d_numba(loader2.load(snplist)).T.copy()
     if XtX2_diag is None:
         XtX2_diag = mn.calc_XXt_diag_numba(X2t)
-    if printit is True:
+    if message > 1 and printit is True:
         print('IO takes ', time.time() - t0, flush=True)
         print('mode = ', mode, flush=True)
     
@@ -110,7 +108,7 @@ def solve_by_snplist(snplist, w1, w2, y, loader1=None, loader2=None, gwas_sample
         return beta, niter, diff, (t, r, conv), (A, b, X2t, XtX2_diag, mode)
         
         
-def solve_path_by_snplist(snplist, lambda_seq_dict, data_args, alpha_list=[ 0.5 ], offset_x_w_list=[ [ 0, 1 ] ], tol=1e-5, maxiter=1000, mode=None):
+def solve_path_by_snplist(snplist, lambda_seq_dict, data_args, alpha_list=[ 0.5 ], offset_x_w_list=[ [ 0, 1 ] ], tol=1e-5, maxiter=1000, mode=None, message=0):
     '''
     beta_out = 
     [ # for each alpha
@@ -168,10 +166,12 @@ def solve_path_by_snplist(snplist, lambda_seq_dict, data_args, alpha_list=[ 0.5 
                         XtX2_diag=XtX2_diag,
                         return_raw=True,
                         mode=mode,
+                        message=message,
                         **data_args
                     )
                     tt = time.time() - t0
-                    print(f'w1 = {w1}, w2 = {w2}, time = {tt}', flush=True)
+                    if message > 2:
+                        print(f'w1 = {w1}, w2 = {w2}, time = {tt}', flush=True)
                     beta_mat[:, idx] = beta  
                 beta_out[-1][-1].append(beta_mat)
                 niter_out[-1][-1].append(niter_vec)

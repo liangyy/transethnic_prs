@@ -189,7 +189,7 @@ class Model1Geno:
             out_dict[k] = list(tmp.max(axis=0))
         return out_dict
     
-    def solve_path_by_blk(self, alpha=0.5, offset=0, w=1., tol=1e-5, maxiter=1000, nlambda=100, ratio_lambda=100, nthreads=None, mode=None, lambda_seq=None):
+    def solve_path_by_blk(self, alpha=0.5, offset=0, w=1., tol=1e-5, maxiter=1000, nlambda=100, ratio_lambda=100, nthreads=None, mode=None, lambda_seq=None, message=0):
         '''
         Same info as solve_path.
         But here we solve each block one at a time and combine at the end.
@@ -241,11 +241,15 @@ class Model1Geno:
         if lambda_seq is None:
             lambda_max = self.kkt_beta_zero_multi_threads(alpha, w_dict=w_dict, nthreads=nthreads)
             lambda_seq = get_lambda_seq(lambda_max, nlambda, ratio_lambda)
-        else:
+        elif isinstance(lambda_seq, list):
             lambda_seq_ = OrderedDict()
             for w in w_dict.keys():
                 lambda_seq_[w] = deepcopy(lambda_seq)
             lambda_seq = lambda_seq_
+        elif isinstance(lambda_seq, OrderedDict):
+            for w in w_dict.keys():
+                if w not in lambda_seq:
+                    raise ValueError(f'Invalid lambda_seq since it misses w = {w}')
         # add the first solution (corresponds to lambda = lambda_max)
         
         args_by_worker = self._solve_path_by_snplist(
@@ -254,7 +258,8 @@ class Model1Geno:
             offset_x_w=offset_x_w, 
             tol=tol, 
             maxiter=maxiter,
-            mode=mode
+            mode=mode, 
+            message=message
         )
         
         nthreads = self._return_threads_for_now(nthreads)
@@ -304,7 +309,7 @@ class Model1Geno:
         for i in range(self.n_blk):
             o.append((self.pop2_loader, self.blist[i], self.gwas_sample_size - 1, self.varx1[i], self.snplist[i], self.y, alpha, w_dict))
         return o
-    def _solve_path_by_snplist(self, alpha, lambda_seq, offset_x_w, tol, maxiter, mode):
+    def _solve_path_by_snplist(self, alpha, lambda_seq, offset_x_w, tol, maxiter, mode, message):
         o = []
         for i in range(self.n_blk):
             o.append(
@@ -317,6 +322,7 @@ class Model1Geno:
                     'tol': tol, 
                     'maxiter': maxiter,
                     'mode': mode,
+                    'message': message,
                     'data_args': {
                         'loader1': self.pop1_loader, 
                         'loader2': self.pop2_loader, 
