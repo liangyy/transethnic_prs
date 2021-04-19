@@ -65,7 +65,7 @@ def solve_by_snplist(snplist, w1, w2, y, loader1=None, loader2=None, gwas_sample
                 mode = 'XtX'
         if mode == 'X':
             # work with genotype X
-            X1t = mn.mean_center_col_2d_numba(x1).T.copy() / np.sqrt((nx - 1) / (gwas_sample_size - 1))
+            X1t = mn.mean_center_col_2d_numba(x1).T.copy() / np.sqrt(nx - 1) * np.sqrt(gwas_sample_size - 1)  # np.sqrt((nx - 1) / (gwas_sample_size - 1))
             XtX1_diag = mn.calc_XXt_diag_numba(X1t)
             A = (X1t, XtX1_diag)
             b = gwas_bhat * XtX1_diag

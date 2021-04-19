@@ -43,7 +43,7 @@ class Model1Geno:
     
     Internally, snp as saved as chrm_pos_A1_A2 where A1_A2 follows rules specified in transethnic_prs.util.genotyp_io.snpinfo_to_snpid
     '''
-    def __init__(self, snplist, df_gwas, gwas_sample_size, df_y, pop1_bed, pop2_bed, nthreads=1):
+    def __init__(self, snplist, df_gwas, gwas_sample_size, df_y, pop1_bed, pop2_bed, nthreads=1, no_gwas=False):
         '''
         df_y: pd.DataFrame({
             'indiv': IID,
@@ -56,6 +56,7 @@ class Model1Geno:
         self.pop2_loader
         '''
         self.nthreads = self._check_n_return_nthreads(nthreads)
+        self.no_gwas = no_gwas
         self._set_y_and_pop2_loader(pop2_bed, df_y)
         self._set_pop1_loader(pop1_bed)
         self.gwas_sample_size = gwas_sample_size
@@ -165,7 +166,10 @@ class Model1Geno:
                 ) 
     def _set_bhat(self):
         for i in range(len(self.blist)):
-            self.blist[i] = self.blist[i] / np.sqrt(self.gwas_sample_size - 1) / np.sqrt(self.varx1[i])    
+            if self.no_gwas is False:
+                self.blist[i] = self.blist[i] / np.sqrt(self.gwas_sample_size - 1) / np.sqrt(self.varx1[i])    
+            else:
+                self.blist[i] = np.zeros(self.blist[i].shape)
     def kkt_beta_zero_multi_threads(self, alpha, w_dict, nthreads=None):
         args_by_worker = self._kkt_args(alpha, w_dict)
         nthreads = self._return_threads_for_now(nthreads)

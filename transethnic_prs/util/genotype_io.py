@@ -133,7 +133,7 @@ def get_complement(str_):
         char_ = s.upper()
         if char_ not in COMPLEMENT_BASE:
             raise ValueError(f'Wrong s in str_: s = {s}.')
-        o += COMPLEMENT_BASE[char_]
+        o = COMPLEMENT_BASE[char_] + o
     return o
 
 def get_order(str_):
@@ -157,11 +157,11 @@ def give_unique_pair(a1, a2):
     # complement flip order
     ca2 = get_complement(a2)
     o4 = get_order(ca2)
-    if o1 < min(o2, o3, o4):
+    if o1 <= min(o2, o3, o4):
         return a1 + SNPID_SEP + a2, 1
     elif o2 < min(o1, o3, o4):
         return a2 + SNPID_SEP + a1, -1
-    elif o3 < min(o1, o2, o4):
+    elif o3 <= min(o1, o2, o4):
         return ca1 + SNPID_SEP + ca2, 1
     elif o4 < min(o1, o2, o3):
         return ca2 + SNPID_SEP + ca1, -1
@@ -176,7 +176,7 @@ def give_unique_pair(a1, a2):
                 a2 = {a2}
         ''')
     
-def snpinfo_to_snpid(chrm, pos, a1, a2, return_complete=False):
+def snpinfo_to_snpid(chrm, pos, a1, a2, return_complete=False, allow_ambi=False):
     '''
     Internally, we convert chrm, pos, a1, a2 as chrm_pos_A1_A2, 
     where A1 and A2 follow the rule that A1A2 < all other flip and/or complement combinations.
@@ -195,7 +195,7 @@ def snpinfo_to_snpid(chrm, pos, a1, a2, return_complete=False):
         clist, plist, a1list, a2list = [], [], [], []
     for c, p, A1, A2 in zip(chrm, pos, a1, a2):
         idx += 1
-        if A1.upper() == get_complement(A2):
+        if allow_ambi is False and A1.upper() == get_complement(A2):
             continue
         allele_pair, direction = give_unique_pair(A1, A2)
         snpids.append(SNPID_SEP.join([ str(c), str(p), allele_pair ]))
