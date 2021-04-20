@@ -165,13 +165,13 @@ class Model1Blk:
                 if idx == 0:
                     continue
                 w1, w2 = alpha_lambda_to_w1_w2(alpha, lam)
-                beta_vec, niter_vec[idx], tol_vec[idx], (tlist, rlist, conv_vec[idx]) = self.solve_by_blk(
+                betalist, niter_vec[idx], tol_vec[idx], (tlist, rlist, conv_vec[idx]) = self.solve_by_blk(
                     w1=w1, w2=w2, idx=i,
                     tol=tol, maxiter=maxiter, offset=offset,
                     init_beta=betalist, init_t=tlist, init_r=rlist,
                     return_raw=True
                 )
-                beta_mat[:, idx] = beta_vec
+                beta_mat[:, idx] = betalist
             beta_list.append(beta_mat)
             niter_list.append(niter_vec)
             tol_list.append(tol_vec)
