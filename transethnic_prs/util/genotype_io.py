@@ -89,7 +89,7 @@ class PlinkBedIO:
             bedfile = self.get_bedfile()
         snps = snplist[ snplist.snpid.isin(snps) ].reset_index(drop=True)
         return snps, bedfile
-    def load(self, snps, standardize=False, missing_rate_warn_cutoff=0.5):
+    def load(self, snps, standardize=False, missing_rate_warn_cutoff=0.5, return_snplist=False):
         df_active_snp, bedfile = self._get_snp_idx(snps)
         G = read_plink1_bin(bedfile, verbose=False)
         geno = G.sel(
@@ -115,7 +115,10 @@ class PlinkBedIO:
             var_geno = 2 * maf * (1 - maf)
             geno = (geno - 2 * maf) / np.sqrt(var_geno)
         # TODO: is copy necessary? it is added to ensure C array
-        return geno.copy()
+        if return_snplist is True:
+            return geno.copy(), df_active_snp
+        else:
+            return geno.copy()
 
 def parse_snpid(snp):
     chrm, pos, a1, a2 = [], [], [], []
