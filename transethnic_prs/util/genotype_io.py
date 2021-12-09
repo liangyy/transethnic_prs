@@ -2,7 +2,7 @@ from collections import OrderedDict
 
 import numpy as np
 import pandas as pd
-import string, re
+import string, re, warnings
 from tqdm import tqdm
 
 from pandas_plink import read_plink1_bin
@@ -91,6 +91,11 @@ class PlinkBedIO:
         return snps, bedfile
     def load(self, snps, standardize=False, missing_rate_warn_cutoff=0.5, return_snplist=False):
         df_active_snp, bedfile = self._get_snp_idx(snps)
+        if df_active_snp.shape[0] == 0:
+            if return_snplist is True:
+                return None, None
+            else:
+                return None
         G = read_plink1_bin(bedfile, verbose=False)
         geno = G.sel(
             sample=self.get_indiv(), 
