@@ -167,7 +167,7 @@ def give_unique_pair(a1, a2):
     o4 = get_order(ca2)
     if o1 <= min(o2, o3, o4):
         return a1 + SNPID_SEP + a2, 1
-    elif o2 < min(o1, o3, o4):
+    elif o2 <= min(o1, o3, o4):
         return a2 + SNPID_SEP + a1, -1
     elif o3 <= min(o1, o2, o4):
         return ca1 + SNPID_SEP + ca2, 1
